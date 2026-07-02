@@ -1,7 +1,7 @@
 ---
-title: "Configure Custom Fonts in Corpointa"
+title: "Configure Fonts for the Corpointa Dashboard Application"
 sidebarTitle: "Fonts"
-description: "Corpointa's font configuration is managed in src/config/fonts.ts. Users can change their preferred font family in Settings > Appearance, and the choice persists via cookie."
+description: "Font configuration is managed in src/config/fonts.ts. Users pick a preferred font in Settings Appearance and the selection persists in the font cookie."
 ---
 
 Corpointa manages available font families through a central config file at `src/config/fonts.ts`. The font a user selects in **Settings → Appearance** is applied instantly by toggling a CSS class on the `<html>` element, and the choice is stored in the `font` cookie so it is restored on every page load. Adding a new font to the application is a three-step process requiring changes to one config file, one HTML file, and one CSS file — no rebuild of Tailwind config is needed.

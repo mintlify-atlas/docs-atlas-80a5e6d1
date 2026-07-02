@@ -1,7 +1,7 @@
 ---
 title: "Despachos: Issue and Track Outgoing Material Dispatches"
 sidebarTitle: "Dispatches"
-description: "Despachos (Salidas) record the delivery of materials to employees. Each dispatch can be validated, reviewed by finance and the president, and exported as a signed PDF acta."
+description: "Despachos (Salidas) record outbound material deliveries to employees. Each dispatch validates stock, links approvers, and exports a signed PDF acta."
 ---
 
 **Despachos** (also referred to as *Salidas*) are the outbound movement records that capture the delivery of warehouse materials to employees. Accessible at `/salidas`, each Despacho documents who received the materials, why they were requested, and which specific stock items were issued in what quantities. Once created, a dispatch can be exported as a formal signed PDF *acta* — a physical document that serves as the official record of the handover.
@@ -60,7 +60,7 @@ A Despacho moves through a defined lifecycle from initial creation to final sign
     Before adding material lines, the operator checks the **Existencia Validada** checkbox to confirm that the requested items are physically available in the warehouse. Setting `existencia_validada` to `true` signals that a stock check has been performed and the dispatch is cleared to proceed.
   </Step>
   <Step title="Add Material Lines">
-    Materials are selected from the live existencias list, which shows each item alongside its current available quantity (`cantidad_actual`). The operator enters the **Cantidad Entregada** for each item and clicks **Agregar** to add it to the dispatch table. Each stock item can only appear once per dispatch.
+    Materials are selected from the live existencias list, which shows each item alongside its current available quantity (`cantidad_actual`). The operator enters the **Cantidad** for each item and clicks **Agregar** to add it to the dispatch table. Each stock entry (`existencia`) can only appear once per dispatch. Both `cantidad_solicitada` and `cantidad_entregada` are recorded per line.
   </Step>
   <Step title="Link Approvers (Optional)">
     If the dispatch requires formal sign-off, `fk_id_gerente_finanzas` and `fk_id_presidente` can be linked to the record to associate the relevant approvers before or after creation.
@@ -144,13 +144,19 @@ POST /salidas
 
 ```json
 {
+  "numero_salida": "SAL-001",
   "fecha_salida": "2025-01-20",
+  "existencia_validada": true,
   "motivo_solicitud": "Mantenimiento mensual",
   "fk_id_empleado_recibe": 7,
   "fk_id_gerente_finanzas": 2,
   "observacion": null,
   "detalles": [
-    { "fk_id_material": 5, "cantidad_entregada": 10 }
+    {
+      "fk_id_existencia": 11,
+      "cantidad_solicitada": 10,
+      "cantidad_entregada": 10
+    }
   ]
 }
 ```
@@ -188,7 +194,7 @@ POST /salidas
 </ParamField>
 
 <ParamField body="detalles" type="array" required>
-  Array of material lines. Each element requires `fk_id_material` (number) and `cantidad_entregada` (number > 0). Minimum one item required.
+  Array of stock-line items to dispatch. Each element requires `fk_id_existencia` (number — the existencia record ID, not `fk_id_material`), `cantidad_solicitada` (number > 0), and `cantidad_entregada` (number > 0). Minimum one item required.
 </ParamField>
 
 ---

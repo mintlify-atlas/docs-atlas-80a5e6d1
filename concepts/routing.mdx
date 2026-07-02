@@ -39,6 +39,9 @@ src/routes/
 │   ├── chats/
 │   ├── tasks/
 │   ├── apps/
+│   ├── help-center/
+│   ├── errors/
+│   │   └── $error.tsx            # Dynamic error detail page
 │   └── settings/
 └── clerk/                        # Clerk-specific auth variants
 ```
@@ -149,19 +152,28 @@ This is useful for the heaviest pages (large data tables, complex charts) where 
 Table state — pagination page, page size, global text filter, and per-column filters — is synchronised bidirectionally with URL search parameters via the `useTableUrlState` hook from `src/hooks/use-table-url-state.ts`.
 
 ```ts
-// Typical usage inside a feature route component
-const { search, navigate } = Route.useRouteContext()
+// Typical usage inside a feature page component
+import { getRouteApi } from '@tanstack/react-router'
+import { useTableUrlState } from '@/hooks/use-table-url-state'
 
-const tableState = useTableUrlState({
-  search,
-  navigate,
-  pagination: { defaultPageSize: 10 },
-  globalFilter: { enabled: true, key: 'filter' },
-  columnFilters: [
-    { columnId: 'rol',  searchKey: 'rol',  type: 'array' },
-    { columnId: 'name', searchKey: 'name', type: 'string' },
-  ],
-})
+const route = getRouteApi('/_authenticated/materiales/')
+
+function MaterialesTable({ data }: { data: Material[] }) {
+  const search = route.useSearch()
+  const navigate = route.useNavigate()
+
+  const { columnFilters, onColumnFiltersChange, pagination, onPaginationChange } =
+    useTableUrlState({
+      search,
+      navigate,
+      pagination: { defaultPage: 1, defaultPageSize: 10 },
+      globalFilter: { enabled: false },
+      columnFilters: [
+        { columnId: 'descripcion', searchKey: 'descripcion', type: 'string' },
+      ],
+    })
+  // ...
+}
 ```
 
 Because state lives in the URL, users can:
@@ -199,6 +211,6 @@ const router = createRouter({
     When a user hovers over or presses down on a `<Link>`, the router begins prefetching that route's JavaScript chunk and running its `loader` function — so the page is often ready before the click completes.
   </Card>
   <Card title="defaultPreloadStaleTime: 0" icon="clock-rotate-left">
-    Prefetched data is never considered stale, so navigating back to a prefetched route does not trigger an unnecessary re-fetch.
+    Prefetched loader data expires immediately, so navigating to a prefetched route always re-runs its loader to guarantee fresh data rather than serving a stale cached result.
   </Card>
 </CardGroup>

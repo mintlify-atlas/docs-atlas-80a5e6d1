@@ -1,7 +1,7 @@
 ---
-title: "Environment Variables and Build Configuration for Corpointa"
+title: "Corpointa Environment Variables and Build Configuration"
 sidebarTitle: "Environment"
-description: "Configure Corpointa for production by setting VITE_API_URL and optionally VITE_CLERK_PUBLISHABLE_KEY. All environment variables must be prefixed with VITE_ to be exposed to the browser."
+description: "Set VITE_CLERK_PUBLISHABLE_KEY for Clerk authentication in Corpointa. All VITE_ variables are inlined at build time and exposed to the browser."
 ---
 
 Corpointa is a Vite-powered application, which means only variables prefixed with `VITE_` are statically inlined into the client bundle at build time. Any variable without that prefix stays server-side and is never accessible to browser code. Variables are accessed at runtime via `import.meta.env.VITE_*` — there is no `process.env` in the browser context.
@@ -10,8 +10,7 @@ Corpointa is a Vite-powered application, which means only variables prefixed wit
 
 | Name | Required | Default | Description |
 |---|---|---|---|
-| `VITE_API_URL` | Optional | `http://localhost:4000` | The base URL for the backend REST API. All Axios requests use this as their base URL. |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Optional | — | Clerk publishable key. Only required if you are using Clerk-authenticated routes. Leave unset to disable Clerk integration. |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Optional | — | Clerk publishable key. Required if you are using Clerk-authenticated routes. Leave unset to disable Clerk integration. |
 
 ## Setting Variables
 
@@ -20,7 +19,6 @@ Corpointa is a Vite-powered application, which means only variables prefixed wit
 **Production** — set variables directly in your hosting platform's environment settings. For Netlify, go to **Site configuration → Environment variables** and add each key there. The values are injected at build time when Netlify runs `pnpm build`.
 
 ```bash .env
-VITE_API_URL=https://api.corpointa.example.com
 VITE_CLERK_PUBLISHABLE_KEY=pk_live_xxxxxxxxxxxx
 ```
 

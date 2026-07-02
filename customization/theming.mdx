@@ -1,18 +1,17 @@
 ---
-title: "Customize Corpointa Themes, Colors, and Dark Mode"
+title: "Customize Corpointa UI Themes, Colors, and Dark Mode"
 sidebarTitle: "Theming"
-description: "Corpointa supports light, dark, and system themes using CSS variables with TailwindCSS v4. Users can switch themes in Settings, and the preference persists via cookie."
+description: "Corpointa uses CSS variables with TailwindCSS v4 for theming. Light and dark modes use a class on html and the choice persists via cookie."
 ---
 
 Corpointa's visual styling is built on **TailwindCSS v4** and a CSS variable system that separates color tokens from layout defaults. Every color used across the UI resolves through a CSS custom property, meaning you can retheme the entire application by overriding a small set of variables in a single stylesheet — no Tailwind config rebuild required.
 
 ## Theme Modes
 
-Corpointa ships with three theme modes: **light**, **dark**, and **system**.
+Corpointa ships with two theme modes available in **Settings → Appearance**: **light** and **dark**.
 
 - **Light** — uses the default `:root` variable values defined in `theme.css`
 - **Dark** — overrides those variables with the `.dark` class ruleset
-- **System** — follows the operating system's `prefers-color-scheme` media query and switches automatically if the OS preference changes
 
 Users select their preferred mode in **Settings → Appearance** using a radio group. The selection is immediately applied to the document and stored in the `vite-ui-theme` cookie (with a 1-year expiry) so it is restored on every subsequent page load before the first render — no flash of the wrong theme.
 
@@ -62,13 +61,13 @@ Tailwind reads these variables through `@theme inline`, so utility classes like 
 
 ## Dark Mode
 
-Dark mode is toggled by adding or removing the `dark` class on the `<html>` element. The `ThemeProvider` context handles this:
+Dark mode is toggled by adding or removing the `dark` class on the `<html>` element. The `ThemeProvider` context handles this via a `useEffect` that listens to the current theme value:
 
 ```typescript
-const applyTheme = (resolvedTheme: 'light' | 'dark') => {
+const applyTheme = (currentResolvedTheme: ResolvedTheme) => {
   const root = window.document.documentElement
   root.classList.remove('light', 'dark')
-  root.classList.add(resolvedTheme)
+  root.classList.add(currentResolvedTheme)
 }
 ```
 
@@ -82,7 +81,7 @@ This means any `dark:` utility class activates whenever an ancestor element carr
 
 ## RTL Support
 
-Corpointa supports right-to-left layouts for Arabic, Hebrew, and other RTL languages. The text direction is managed by `DirectionProvider` and toggled from the **Config Drawer** under the **Direction** section, which offers LTR and RTL options.
+Corpointa supports right-to-left layouts for Arabic, Hebrew, and other RTL languages. The text direction is managed by `DirectionProvider` and stored in the `dir` cookie (1-year expiry).
 
 When RTL is activated, `dir="rtl"` is set on the `<html>` element:
 
@@ -93,7 +92,7 @@ useEffect(() => {
 }, [dir])
 ```
 
-The direction preference is stored in the `dir` cookie (1-year expiry) and restored on load. Radix UI components (used by all shadcn/ui primitives) receive the direction value through `@radix-ui/react-direction`'s `DirectionProvider`, so popover positions, dropdown alignments, and sidebar chevron directions all flip automatically with zero extra configuration.
+Radix UI components (used by all shadcn/ui primitives) receive the direction value through `@radix-ui/react-direction`'s `DirectionProvider`, so popover positions, dropdown alignments, and sidebar chevron directions all flip automatically with zero extra configuration.
 
 ## shadcn/ui Components
 

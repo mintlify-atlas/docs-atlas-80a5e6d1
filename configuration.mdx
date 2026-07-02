@@ -23,10 +23,12 @@ To configure these values, copy the example file and edit it:
 cp .env.example .env
 ```
 
+The `.env.example` file ships with only `VITE_CLERK_PUBLISHABLE_KEY` declared. Add `VITE_API_URL` manually if your backend is not at the default address:
+
 ```bash
 # .env
-VITE_API_URL=https://api.corpointa.example.com
 VITE_CLERK_PUBLISHABLE_KEY=pk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+VITE_API_URL=https://api.corpointa.example.com
 ```
 
 <Warning>
@@ -191,7 +193,11 @@ All project scripts are defined in `package.json` and run via `pnpm`:
 | `preview` | `vite preview` | Serve the production build locally at `http://localhost:4173` for pre-deploy validation. |
 | `lint` | `eslint .` | Run ESLint across all project files using the configured rule set. |
 | `format` | `prettier --write .` | Auto-format all files in place using Prettier. |
+| `format:check` | `prettier --check .` | Check formatting across all files without writing changes (useful in CI). |
 | `test` | `vitest run --browser.headless` | Execute the full test suite once in headless Chromium via Playwright. |
 | `test:watch` | `vitest --browser.headless` | Run tests in watch mode — re-runs affected tests on file save. |
+| `test:ui` | `vitest --ui --browser.headless` | Open the Vitest interactive UI while running tests headlessly. |
+| `test:browser` | `vitest` | Run tests in a visible Chromium browser window (non-headless). |
 | `test:coverage` | `vitest run --coverage --browser.headless` | Run the test suite and generate a V8 code-coverage report. |
+| `test:browser:install` | `playwright install chromium --with-deps` | Install the Chromium browser and its system dependencies for Playwright. |
 | `knip` | `knip` | Analyse the project for unused files, exports, and dependencies. |

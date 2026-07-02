@@ -1,7 +1,7 @@
 ---
 title: "Stock Levels: Monitor Inventory Quantities and Thresholds"
 sidebarTitle: "Stock"
-description: "Existencias tracks current stock per material with configurable minimum and maximum thresholds. Low-stock items are flagged on the dashboard and in the stock table."
+description: "Existencias tracks on-hand quantity per material with min/max thresholds. Low-stock items are flagged on the Dashboard and highlighted in the stock table."
 ---
 
 Existencias (stock levels) represent the current on-hand quantity of each material in the warehouse. Every material registered in the catalog has a corresponding existencia record that tracks its `cantidad_actual` alongside configurable `stock_minimo` and `stock_maximo` thresholds. The module is accessible at the `/existencias` route and provides two views: a live stock table and an Acta-based movement history that aggregates controles perceptivos (entries) and salidas (exits).
@@ -43,6 +43,12 @@ export type Existencia = z.infer<typeof existenciaSchema>
 In addition to the stock table, the `/existencias` route provides an Acta (movement record) view that consolidates all entries and exits into unified records.
 
 ```typescript
+export const detalleActaSchema = z.object({
+  fk_id_material:       z.number(),
+  material_descripcion: z.string(),
+  cantidad:             z.number(),
+})
+
 export const actaSchema = z.object({
   id_acta:               z.number(),
   numero_acta:           z.string(),
@@ -51,12 +57,6 @@ export const actaSchema = z.object({
   numero_requerimiento:  z.string().nullable().optional(),
   numero_compra:         z.string().nullable().optional(),
   detalles:              z.array(detalleActaSchema),
-})
-
-export const detalleActaSchema = z.object({
-  fk_id_material:       z.number(),
-  material_descripcion: z.string(),
-  cantidad:             z.number(),
 })
 ```
 
@@ -79,7 +79,7 @@ The `getActas()` function fetches from two separate API resources and merges the
 1. **Entries** — `GET /controles-perceptivos` (perception control records). Each record is then expanded with `GET /controles-perceptivos/:id` to fetch its detail lines.
 2. **Exits** — `GET /salidas`. Each record is expanded with `GET /salidas/:id_salida` for its line items.
 
-Both collections are mapped to the unified `Acta` shape and returned as a single sorted array. If the salidas endpoint is unavailable, it gracefully returns an empty array rather than failing.
+Both collections are mapped to the unified `Acta` shape and returned as a single combined array (entries first, then exits). If the salidas endpoint is unavailable, it gracefully returns an empty array rather than failing.
 
 ```typescript
 import { getActas } from '@/features/existencias/api/existencias'

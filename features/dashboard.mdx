@@ -1,7 +1,7 @@
 ---
 title: "Dashboard: Real-Time Inventory KPIs and Movement Charts"
 sidebarTitle: "Dashboard"
-description: "The Corpointa Dashboard shows live KPI cards for materials, stock, movements, and low-stock alerts, plus monthly entry/exit charts and recent dispatch history."
+description: "Corpointa's Dashboard shows live KPI cards for materials, stock, and low-stock alerts, plus monthly entry/exit charts and a recent dispatch history panel."
 ---
 
 The Dashboard is the home screen of Corpointa, available at the `/` route. It loads live data from the API on every visit and gives warehouse staff an instant pulse of the entire inventory — how many materials are registered, how much stock is on hand, which items have fallen below their minimum threshold, and how many movements have occurred this month. Two tabs let users switch between a high-level **Descripción General** view and a deeper **Analíticas** breakdown.
@@ -125,7 +125,7 @@ interface DashboardStats {
   /** Number of exit movements recorded this calendar month */
   salidasMes: number
 
-  /** Monthly breakdown for the bar/pie charts */
+  /** Monthly breakdown used by the Overview donut chart */
   movimientosMensuales: {
     mes: string       // e.g. "Enero"
     mes_num: string   // e.g. "01"

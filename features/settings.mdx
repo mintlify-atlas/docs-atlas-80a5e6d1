@@ -1,7 +1,7 @@
 ---
 title: "Settings: Personalize Your Corpointa Account and Interface"
 sidebarTitle: "Settings"
-description: "Settings lets each user configure their profile, change their password, adjust appearance (theme, font), manage notification preferences, and set display options."
+description: "Settings lets each Corpointa user configure their profile, password, appearance, notification preferences, and sidebar display options."
 ---
 
 Settings is the personal configuration area for every Corpointa user. Accessible at `/settings`, it groups account and interface options into a sidebar-navigated layout. Each section lives at its own sub-route, keeping concerns clearly separated: who you are, how you authenticate, how the interface looks, what notifications you receive, and which sidebar items are visible. All changes made here affect only the signed-in user's account and local preferences.
@@ -27,7 +27,7 @@ Settings is the personal configuration area for every Corpointa user. Accessible
   <Card title="Appearance" icon="palette">
     **Route:** `/settings/appearance`
 
-    Controls the visual theme and font family used throughout the dashboard. The theme can be set to **Light** or **Dark**. The font family is selected from a dropdown of available options. Both preferences are applied immediately on save and persisted in browser cookies so they survive page reloads.
+    Controls the visual theme and font family used throughout the dashboard. The theme can be set to **Light** or **Dark**. The font family is selected from a dropdown with four options: **public-sans**, **inter**, **manrope**, and **system**. Both preferences are applied immediately on save and persisted in browser cookies so they survive page reloads.
   </Card>
   <Card title="Notifications" icon="bell">
     **Route:** `/settings/notifications`

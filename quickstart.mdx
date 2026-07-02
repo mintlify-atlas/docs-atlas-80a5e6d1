@@ -1,5 +1,5 @@
 ---
-title: "Get Started with Corpointa in 5 Minutes"
+title: "Quickstart: Run the Corpointa Dev Server Locally"
 sidebarTitle: "Quickstart"
 description: "Clone the Corpointa frontend, install dependencies with pnpm, configure your backend URL, and launch the dev server — all in under 5 minutes."
 ---
@@ -47,14 +47,15 @@ By the end of this guide you will have a fully functional Corpointa development 
     cp .env.example .env
     ```
 
-    Open `.env` in your editor and set `VITE_API_URL` to point at your running backend:
+    The `.env.example` file contains only the `VITE_CLERK_PUBLISHABLE_KEY` placeholder. If your backend is not at the default `http://localhost:4000`, add `VITE_API_URL` manually. Open `.env` in your editor:
 
     ```bash
     # .env
-    VITE_API_URL=http://localhost:4000
+    VITE_CLERK_PUBLISHABLE_KEY=       # required only when using Clerk auth
+    VITE_API_URL=http://localhost:4000 # add this line if your backend is elsewhere
     ```
 
-    Replace `http://localhost:4000` with the actual URL of your Corpointa backend if it is hosted elsewhere (e.g., `https://api.corpointa.example.com`).
+    Replace `http://localhost:4000` with the actual URL of your Corpointa backend if it is hosted elsewhere (e.g., `https://api.corpointa.example.com`). If `VITE_API_URL` is omitted, the API client defaults to `http://localhost:4000`.
   </Step>
 
   <Step title="Run Tests (Optional)">

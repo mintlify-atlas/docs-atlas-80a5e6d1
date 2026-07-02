@@ -12,6 +12,7 @@ Corpointa's frontend follows a **feature-based architecture**: every business do
 src/
 ├── assets/          # Brand icons, custom graphics
 ├── components/      # Shared layout and UI components
+│   ├── data-table/  # Reusable data-table toolbar and pagination
 │   ├── layout/      # App shell: sidebar, header, nav groups
 │   └── ui/          # shadcn/Radix primitive wrappers
 ├── config/          # Font configuration
@@ -27,7 +28,8 @@ src/
 ├── hooks/           # Shared custom hooks
 ├── lib/             # Utilities: api-client, cookies, token-utils
 ├── routes/          # TanStack Router file-based routes
-└── stores/          # Zustand auth store
+├── stores/          # Zustand auth store
+└── styles/          # Global CSS entry point
 ```
 
 ## Feature Module Pattern
@@ -131,15 +133,15 @@ export default apiClient
 
 ## Context Providers
 
-The `src/context/` directory houses global React context providers that wrap the entire application inside `src/main.tsx`:
+The `src/context/` directory houses React context providers. The three global providers wrap the entire application in `src/main.tsx`; the two layout-scoped providers are mounted by `AuthenticatedLayout` and are therefore only active on authenticated pages:
 
-| Provider | Purpose |
-|---|---|
-| `ThemeProvider` | Light / dark mode, synced to a cookie |
-| `FontProvider` | Active font family preference |
-| `DirectionProvider` | LTR / RTL text direction |
-| `LayoutProvider` | Fixed vs. scrollable content layout |
-| `SearchProvider` | Global command-palette search state |
+| Provider | Scope | Purpose |
+|---|---|---|
+| `ThemeProvider` | Global (`main.tsx`) | Light / dark mode, synced to a cookie |
+| `FontProvider` | Global (`main.tsx`) | Active font family preference |
+| `DirectionProvider` | Global (`main.tsx`) | LTR / RTL text direction |
+| `LayoutProvider` | Authenticated layout | Fixed vs. scrollable content layout |
+| `SearchProvider` | Authenticated layout | Global command-palette search state |
 
 ## Shared Hooks
 
@@ -147,7 +149,7 @@ The `src/context/` directory houses global React context providers that wrap the
 
 - **`useTableUrlState`** — Synchronises TanStack Table pagination, global filter, and column filters with URL search params so table state survives navigation and is shareable via URL.
 - **`useDialogState`** — Lightweight open/close state helper for modal dialogs.
-- **`useMobile`** — Breakpoint hook that returns `true` when the viewport is in the mobile range.
+- **`useIsMobile`** — Breakpoint hook that returns `true` when the viewport is below the 768 px breakpoint.
 
 ## Automatic Code Splitting
 

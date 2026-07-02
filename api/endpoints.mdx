@@ -1,7 +1,7 @@
 ---
 title: "Complete REST API Endpoint Reference for Corpointa"
 sidebarTitle: "Endpoints"
-description: "Full reference of all Corpointa REST API endpoints — authentication, dashboard stats, materials, stock, movements, contacts, users, and audit logs."
+description: "Full reference for every REST endpoint consumed by Corpointa — auth, dashboard, materials, stock, movements, catalogs, users, and audit log."
 ---
 
 This page is a comprehensive reference for every REST endpoint consumed by the Corpointa frontend. Endpoints and their request/response shapes have been extracted directly from the frontend API modules in `src/features/*/api/`. All endpoints (except `POST /auth/login` and `POST /auth/refresh-token`) require a valid `Authorization: Bearer <token>` header — see the [Authentication](/api/authentication) page for how to obtain a token.
@@ -209,8 +209,8 @@ Returns a single control perceptivo with its full `detalles` (line items) array.
 
 Creates a new goods-received note, including its line items in a single request.
 
-<ParamField body="numero_nota_entrega" type="string">
-  The delivery note number from the supplier. Optional.
+<ParamField body="numero_control" type="string" required>
+  The unique control number for this receipt (e.g. `"ACTA 001-2025"`).
 </ParamField>
 
 <ParamField body="fecha_control" type="string" required>
@@ -219,6 +219,10 @@ Creates a new goods-received note, including its line items in a single request.
 
 <ParamField body="fk_id_proveedor" type="number" required>
   Foreign key referencing the supplier (`id_proveedor`).
+</ParamField>
+
+<ParamField body="numero_nota_entrega" type="string">
+  The delivery note number from the supplier. Optional.
 </ParamField>
 
 <ParamField body="numero_requerimiento" type="string">
@@ -234,7 +238,10 @@ Creates a new goods-received note, including its line items in a single request.
 </ParamField>
 
 <ParamField body="detalles" type="array" required>
-  Array of line items. Each object must include `fk_id_material` (number) and `cantidad` (number).
+  Array of line items. Each object must include:
+  - `fk_id_material` (number, required) — primary key of the material received
+  - `cantidad` (number, required) — quantity received
+  - `foto` (string, optional) — Base64-encoded image of the product
 </ParamField>
 
 **Response:** The created `ControlPerceptivo` object.
@@ -255,34 +262,38 @@ Returns the list of all dispatch records.
 
 ### `POST /salidas`
 
-Creates a new dispatch record.
+Creates a new dispatch record, including its material line items in a single request.
+
+<ParamField body="numero_salida" type="string" required>
+  The unique dispatch number (e.g. `"SAL-001"`).
+</ParamField>
 
 <ParamField body="fecha_salida" type="string" required>
   ISO 8601 date of the dispatch.
-</ParamField>
-
-<ParamField body="motivo_solicitud" type="string">
-  Reason or justification for the dispatch. Optional.
 </ParamField>
 
 <ParamField body="fk_id_empleado_recibe" type="number" required>
   Foreign key of the employee receiving the materials (`id_empleado`).
 </ParamField>
 
-<ParamField body="fk_id_gerente_finanzas" type="number">
-  Foreign key of the finance manager approving the dispatch. Optional.
+<ParamField body="detalles" type="array" required>
+  Array of line items. Each object must include:
+  - `fk_id_existencia` (number, required) — primary key of the stock record (`id_existencia`)
+  - `cantidad_solicitada` (number, required) — quantity requested
+  - `cantidad_entregada` (number, required) — quantity actually delivered
+  - `observacion` (string, optional) — line-item note
 </ParamField>
 
-<ParamField body="fk_id_presidente" type="number">
-  Foreign key of the president/director approving the dispatch. Optional.
+<ParamField body="existencia_validada" type="boolean">
+  Whether stock levels were verified before dispatch. Defaults to `false`.
+</ParamField>
+
+<ParamField body="motivo_solicitud" type="string">
+  Reason or justification for the dispatch. Optional.
 </ParamField>
 
 <ParamField body="observacion" type="string">
   Free-text observations. Optional.
-</ParamField>
-
-<ParamField body="detalles" type="array" required>
-  Array of line items. Each object must include `fk_id_material` (number) and `cantidad` (number).
 </ParamField>
 
 **Response:** The created `Salida` object.
@@ -450,7 +461,7 @@ Destinations represent internal departments or cost centres that receive dispatc
 
 ## Users
 
-System user accounts that can log into Corpointa. The actual backend routes use `/users` (not `/usuarios`).
+System user accounts that can log into Corpointa. The backend routes use `/users` (not `/usuarios`).
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -473,11 +484,11 @@ System user accounts that can log into Corpointa. The actual backend routes use 
 </ParamField>
 
 <ParamField body="nombre2" type="string">
-  Second given name. Optional.
+  Second given name. Optional. Maximum 50 characters.
 </ParamField>
 
 <ParamField body="apellido2" type="string">
-  Second family name. Optional.
+  Second family name. Optional. Maximum 50 characters.
 </ParamField>
 
 <ParamField body="clave" type="string">

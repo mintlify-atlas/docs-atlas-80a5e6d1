@@ -1,7 +1,7 @@
 ---
-title: "Deploy Corpointa to Netlify"
+title: "Deploy Corpointa to Netlify for Production Hosting"
 sidebarTitle: "Netlify"
-description: "Deploy the Corpointa frontend to Netlify with SPA redirect support. Set your VITE_API_URL environment variable and configure the build command to publish the dist/ folder."
+description: "Deploy Corpointa to Netlify with SPA redirect support. Set the build command, publish directory, and any required environment variables."
 ---
 
 Corpointa ships with a `netlify.toml` configuration file that handles the one critical requirement for deploying a single-page application: ensuring that all URL paths serve `index.html` so that TanStack Router can take over client-side navigation.
@@ -47,13 +47,7 @@ The `status = 200` is important — it tells Netlify to serve `index.html` as a 
   </Step>
 
   <Step title="Add environment variables">
-    Go to **Site configuration → Environment variables** and add at minimum:
-
-    ```bash
-    VITE_API_URL=https://api.corpointa.example.com
-    ```
-
-    If you are using Clerk authentication, also add:
+    Go to **Site configuration → Environment variables** and add any required keys. If you are using Clerk authentication, add:
 
     ```bash
     VITE_CLERK_PUBLISHABLE_KEY=pk_live_xxxxxxxxxxxx

@@ -1,7 +1,7 @@
 ---
 title: "Employees: Track Staff Who Receive Material Dispatches"
 sidebarTitle: "Employees"
-description: "The Employees module registers staff members in Corpointa. Each employee belongs to a destination and can be assigned as the recipient of a material dispatch."
+description: "The Employees module registers staff in Corpointa. Each employee belongs to a destination and can be assigned as the recipient of a material dispatch."
 ---
 
 Employees (*empleados*) are the internal staff members who receive materials when a dispatch is processed. Every employee record is linked to a destination — the office, workshop, or department where they are based — and can be flagged as active or inactive to control whether they appear as selectable recipients. You manage all employees at the `/empleados` route.
@@ -17,7 +17,7 @@ Each employee record contains the following fields:
 | `cedula` | string | Optional, max 30 chars | Venezuelan national identity number |
 | `telefono` | string | Optional, max 30 chars | Contact phone number |
 | `fk_id_destino` | integer | Required, foreign key | References `id_destino` in the Destinations table |
-| `activo` | boolean | Optional, defaults `true` | Whether the employee is currently active |
+| `activo` | boolean | Optional | Whether the employee is currently active |
 | `nombre_destino` | string | Read-only (JOIN) | Destination name resolved server-side for display |
 
 <Note>
@@ -146,5 +146,5 @@ All endpoints operate on the `/empleados` resource and return or accept JSON.
 </ParamField>
 
 <ParamField body="activo" type="boolean">
-  Marks the employee as active (`true`) or inactive (`false`). Inactive employees are excluded from dispatch recipient selectors.
+  Marks the employee as active (`true`) or inactive (`false`). Optional field — inactive employees are excluded from dispatch recipient selectors.
 </ParamField>

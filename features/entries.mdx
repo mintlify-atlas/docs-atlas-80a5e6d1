@@ -1,7 +1,7 @@
 ---
 title: "Control Perceptivo: Record Incoming Warehouse Receipts"
 sidebarTitle: "Entries"
-description: "Control Perceptivo records the reception of materials from suppliers. Each receipt captures supplier, order references, and line-by-line material quantities received."
+description: "Control Perceptivo records inbound material receipts from suppliers. Captures supplier, order references, and line-by-line quantities received."
 ---
 
 A **Control Perceptivo** is the formal warehouse receipt document that records the physical reception of materials from a supplier. When materials arrive at the warehouse, a Control Perceptivo is created at `/entradas` to establish a verifiable record of what was received, from whom, and in what quantities. Each receipt ties together administrative references such as purchase orders and delivery notes with actual line-item material quantities, providing a complete inbound traceability chain.
@@ -17,7 +17,7 @@ Represents the receipt header — one document per supplier delivery.
 </ResponseField>
 
 <ResponseField name="numero_control" type="string" required>
-  Human-readable control number assigned at creation (e.g. `ACTA 001-2025`). Must be unique.
+  Human-readable control number entered by the user at creation (e.g. `ACTA 001-2025`). Must be unique across all receipts.
 </ResponseField>
 
 <ResponseField name="numero_nota_entrega" type="string | null">
@@ -41,7 +41,7 @@ Represents the receipt header — one document per supplier delivery.
 </ResponseField>
 
 <ResponseField name="foto" type="string | null">
-  Base64-encoded image of the delivery documentation or goods. Optional.
+  Base64-encoded image attached to the receipt header. Optional.
 </ResponseField>
 
 <ResponseField name="numero_requerimiento" type="string | null">
@@ -79,7 +79,7 @@ Represents a single material line within a receipt. A receipt must contain at le
 </ResponseField>
 
 <ResponseField name="cantidad" type="number" required>
-  Quantity of the material received. Must be greater than `0`. Accepts decimal values.
+  Quantity of the material received. Must be greater than `0`. Accepts decimal values. The API accepts both `number` and numeric `string` (automatically coerced to `number`).
 </ResponseField>
 
 ---
@@ -93,13 +93,13 @@ New receipts are created at the dedicated form route `/entradas/crear`. The form
     Choose the delivering supplier from the **Proveedor** dropdown. The list is populated from all active suppliers in the system. This field is required.
   </Step>
   <Step title="Set the Control Number and Date">
-    Enter a unique **Número de Control** (e.g. `ACTA 001-2025`) and select the **Fecha** for when the receipt is being registered. Both fields are required.
+    Enter a unique **Número de Control** (e.g. `ACTA 001-2025`) and select the **Fecha** for when the receipt is being registered. Both fields are required and the control number is user-provided — it is not auto-generated.
   </Step>
   <Step title="Fill in Order References (Optional)">
     Optionally provide the **Número Nota Entrega** (supplier delivery note), **Número Requerimiento** (internal requisition), and **Número Orden Compra** (purchase order). These fields link the receipt to procurement documents for traceability.
   </Step>
   <Step title="Add Material Lines">
-    In the **Detalles de Materiales** panel, select a material from the **Material** dropdown, enter the **Cantidad** received, and optionally attach a photo of the goods. Click **Agregar** to append the line to the receipt table. Repeat for each material in the delivery. Each material can only appear once per receipt.
+    In the **Detalles de Materiales** panel, select a material from the **Material** dropdown and enter the **Cantidad** received. Optionally attach a photo of the goods for the detail line. Click **Agregar** to append the line to the receipt table. Repeat for each material in the delivery. Each material can only appear once per receipt.
   </Step>
   <Step title="Submit the Receipt">
     Click **Registrar Control Perceptivo** to save. On success, the application navigates back to `/entradas` and stock levels (existencias) are updated automatically by the backend.
@@ -212,6 +212,7 @@ POST /controles-perceptivos
 
 ```json
 {
+  "numero_control": "ACTA 001-2025",
   "numero_nota_entrega": "NE-2025-001",
   "fecha_control": "2025-01-15",
   "fk_id_proveedor": 3,
@@ -224,6 +225,10 @@ POST /controles-perceptivos
   ]
 }
 ```
+
+<ParamField body="numero_control" type="string" required>
+  Unique, user-provided control number (e.g. `ACTA 001-2025`). Not auto-generated; must be unique across all receipts.
+</ParamField>
 
 <ParamField body="numero_nota_entrega" type="string">
   Supplier delivery note number. Optional.
@@ -254,5 +259,5 @@ POST /controles-perceptivos
 </ParamField>
 
 <Warning>
-  The `numero_control` field must be unique across all receipts. Attempting to create a duplicate control number will result in an error from the backend.
+  The `numero_control` field is user-provided and must be unique across all receipts. Attempting to create a duplicate control number will result in an error from the backend.
 </Warning>

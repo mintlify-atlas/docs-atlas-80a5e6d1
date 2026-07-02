@@ -1,7 +1,7 @@
 ---
 title: "REST API Overview: Connect Corpointa to Your Backend"
 sidebarTitle: "Overview"
-description: "Corpointa communicates with a REST API backend over HTTP. Learn how the Axios client is configured, what the base URL default is, and how authentication tokens are attached."
+description: "Learn how Corpointa's Axios client is configured, what the base URL default is, and how JWTs are attached to every request automatically."
 ---
 
 Corpointa is a frontend-only single-page application (SPA) built with React. It does not contain any server-side logic of its own — instead, every data operation is delegated to a companion REST API backend over HTTP. All network communication is handled through a single, centrally configured Axios instance that lives in `src/lib/api-client.ts`. Understanding this client is the starting point for any integration or debugging work.
@@ -11,8 +11,9 @@ Corpointa is a frontend-only single-page application (SPA) built with React. It 
 The API base URL is supplied at build time through the `VITE_API_URL` environment variable. When that variable is absent — for example in a local development environment — the client falls back to `http://localhost:4000`.
 
 ```bash
-# .env.example
-VITE_API_URL=   # defaults to http://localhost:4000 when unset
+# Set this in your .env file to point at your backend
+VITE_API_URL=https://api.your-backend.com
+# When VITE_API_URL is unset, the client falls back to http://localhost:4000
 ```
 
 The Axios instance is created with that base URL and a default `Content-Type` header:
