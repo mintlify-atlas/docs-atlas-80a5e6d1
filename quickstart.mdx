@@ -1,47 +1,137 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with Corpointa in 5 Minutes"
+sidebarTitle: "Quickstart"
+description: "Clone the Corpointa frontend, install dependencies with pnpm, configure your backend URL, and launch the dev server — all in under 5 minutes."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+By the end of this guide you will have a fully functional Corpointa development environment running on your local machine, connected to a backend API, and ready for you to sign in and explore every module. The entire process — from cloning the repository to seeing the login screen — takes fewer than five minutes on a standard internet connection.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Prerequisites">
+    Before you begin, make sure the following are available on your machine:
+
+    - **Node.js ≥ 18** — [Download from nodejs.org](https://nodejs.org/)
+    - **pnpm** — Install globally with `npm install -g pnpm` if not already present
+    - **A running Corpointa backend** — The frontend expects a REST API to be reachable. If no `VITE_API_URL` is set, the API client defaults to `http://localhost:4000`.
+
+    You can verify your versions before continuing:
 
     ```bash
-    npm install your-package
+    node --version   # should print v18.x.x or higher
+    pnpm --version   # should print 8.x.x or higher
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+
+  <Step title="Clone the Repository">
+    Clone the Corpointa frontend from GitHub and move into the project directory:
 
     ```bash
-    your-cli init
+    git clone https://github.com/EricMartinez758/corpointa-frontend.git && cd corpointa-frontend
     ```
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+  <Step title="Install Dependencies">
+    Install all project dependencies using pnpm:
 
     ```bash
-    your-cli start
+    pnpm install
     ```
+
+    pnpm resolves and links the full dependency graph, including Vite, React 19, TanStack Router, TanStack Query, Radix UI, and all other packages declared in `package.json`.
+  </Step>
+
+  <Step title="Configure Environment Variables">
+    Copy the provided example environment file and update it for your setup:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Open `.env` in your editor and set `VITE_API_URL` to point at your running backend:
+
+    ```bash
+    # .env
+    VITE_API_URL=http://localhost:4000
+    ```
+
+    Replace `http://localhost:4000` with the actual URL of your Corpointa backend if it is hosted elsewhere (e.g., `https://api.corpointa.example.com`).
+  </Step>
+
+  <Step title="Run Tests (Optional)">
+    Corpointa uses Vitest with a Playwright browser provider. If you want to run the test suite before starting the dev server, first install the Chromium browser dependency, then execute the tests:
+
+    ```bash
+    pnpm test:browser:install
+    pnpm test
+    ```
+
+    This runs all tests headlessly in Chromium. You can skip this step if you just want to launch the application.
+  </Step>
+
+  <Step title="Start the Development Server">
+    Launch the Vite dev server:
+
+    ```bash
+    pnpm dev
+    ```
+
+    Vite will start and print output similar to the following:
+
+    ```
+    VITE v8.x.x  ready in 400 ms
+
+    ➜  Local:   http://localhost:5173/
+    ➜  Network: use --host to expose
+    ```
+
+    Open [http://localhost:5173](http://localhost:5173) in your browser to see the Corpointa login screen.
+  </Step>
+
+  <Step title="Sign In">
+    On the login screen, enter your credentials:
+
+    - **Cédula** — Your national ID number registered in the system
+    - **Password** — Your account password
+
+    After a successful login, the backend returns a JWT which is stored in a browser cookie. All subsequent API requests are automatically authenticated via the Axios request interceptor.
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+<Note>
+  **Using Clerk authentication instead?** If your deployment uses the Clerk-based auth flow, add your Clerk publishable key to `.env` before starting the dev server:
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+  ```bash
+  VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  ```
+
+  Then navigate to `/clerk/sign-in` instead of the default login route. See the [Configuration guide](/configuration#authentication-mode) for full details.
+</Note>
+
+## Building for Production
+
+When you are ready to deploy, compile an optimised production bundle:
+
+```bash
+pnpm build
+```
+
+This runs `tsc -b` for type-checking followed by `vite build`. The compiled assets are written to the `dist/` directory.
+
+To preview the production build locally before deploying:
+
+```bash
+pnpm preview
+```
+
+`vite preview` serves the contents of `dist/` at `http://localhost:4173` so you can validate the build before shipping. The included `netlify.toml` configures a catch-all redirect (`/* → /index.html`, HTTP 200) so that client-side routes resolve correctly on Netlify and any other SPA-compatible host.
+
+<Tip>
+  Keep your code clean throughout development with the built-in linting and formatting scripts:
+
+  ```bash
+  pnpm lint      # Run ESLint across the entire project
+  pnpm format    # Auto-format all files with Prettier
+  ```
+
+  Running both before committing helps maintain consistent code style and catches common issues early.
 </Tip>

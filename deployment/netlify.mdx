@@ -1,0 +1,106 @@
+---
+title: "Deploy Corpointa to Netlify"
+sidebarTitle: "Netlify"
+description: "Deploy the Corpointa frontend to Netlify with SPA redirect support. Set your VITE_API_URL environment variable and configure the build command to publish the dist/ folder."
+---
+
+Corpointa ships with a `netlify.toml` configuration file that handles the one critical requirement for deploying a single-page application: ensuring that all URL paths serve `index.html` so that TanStack Router can take over client-side navigation.
+
+## netlify.toml
+
+The `netlify.toml` at the project root configures a catch-all redirect rule:
+
+```toml netlify.toml
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+```
+
+The `status = 200` is important — it tells Netlify to serve `index.html` as a rewrite (not a redirect), so the URL in the browser's address bar stays as-is. When a user navigates directly to `/inventory/products` or refreshes on a deep link, Netlify delivers `index.html` and TanStack Router reads the path and renders the correct route on the client.
+
+## Deploy Steps
+
+<Steps>
+  <Step title="Push your code to a Git repository">
+    Make sure your project is pushed to a GitHub or GitLab repository. Netlify connects directly to your Git provider to trigger builds on every push.
+  </Step>
+
+  <Step title="Connect the repository to Netlify">
+    Log in to the [Netlify dashboard](https://app.netlify.com), click **Add new site → Import an existing project**, and select your Git provider. Choose the Corpointa repository from the list.
+  </Step>
+
+  <Step title="Set the build command">
+    In the build settings, enter the following as the **Build command**:
+
+    ```bash
+    pnpm build
+    ```
+  </Step>
+
+  <Step title="Set the publish directory">
+    Set the **Publish directory** to:
+
+    ```
+    dist
+    ```
+  </Step>
+
+  <Step title="Add environment variables">
+    Go to **Site configuration → Environment variables** and add at minimum:
+
+    ```bash
+    VITE_API_URL=https://api.corpointa.example.com
+    ```
+
+    If you are using Clerk authentication, also add:
+
+    ```bash
+    VITE_CLERK_PUBLISHABLE_KEY=pk_live_xxxxxxxxxxxx
+    ```
+  </Step>
+
+  <Step title="Deploy the site">
+    Click **Deploy site**. Netlify will clone the repo, install dependencies with pnpm, run `tsc -b && vite build`, and publish the `dist/` folder. The deployment URL will be shown in the dashboard once the build completes.
+  </Step>
+</Steps>
+
+## CORS Configuration
+
+Because the Corpointa frontend is served from a Netlify domain (e.g., `https://corpointa.netlify.app`) while your backend API lives on a different origin, you must configure **CORS** on the backend to allow requests from that Netlify domain. Add the deployed Netlify URL to your API's allowed-origins list. If you use a custom domain, add that instead.
+
+Without the correct CORS headers, all API calls from the browser will be blocked, even though the frontend itself loads fine.
+
+## Alternative Platforms
+
+Corpointa can be deployed to any static hosting platform that supports SPA redirect rules. Each platform has its own convention for this configuration:
+
+<CardGroup cols={3}>
+  <Card title="Vercel" icon="triangle">
+    Add a `vercel.json` file to the project root with rewrite rules:
+
+    ```json vercel.json
+    {
+      "rewrites": [
+        { "source": "/(.*)", "destination": "/index.html" }
+      ]
+    }
+    ```
+  </Card>
+
+  <Card title="Cloudflare Pages" icon="cloud">
+    Add a `_redirects` file inside the `dist/` output directory (or the project root, depending on your build setup):
+
+    ```
+    /* /index.html 200
+    ```
+  </Card>
+
+  <Card title="AWS S3 + CloudFront" icon="server">
+    In your S3 static website hosting settings, set the **Error document** to `index.html`. In CloudFront, configure a custom error response: HTTP 403/404 → return `index.html` with HTTP 200.
+  </Card>
+</CardGroup>
+
+<Tip>
+  Enable **Netlify Deploy Previews** in your repository settings. Every pull request will get its own unique preview URL, letting you test UI changes in a production-identical environment before merging to your main branch.
+</Tip>

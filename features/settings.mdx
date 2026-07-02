@@ -1,0 +1,83 @@
+---
+title: "Settings: Personalize Your Corpointa Account and Interface"
+sidebarTitle: "Settings"
+description: "Settings lets each user configure their profile, change their password, adjust appearance (theme, font), manage notification preferences, and set display options."
+---
+
+Settings is the personal configuration area for every Corpointa user. Accessible at `/settings`, it groups account and interface options into a sidebar-navigated layout. Each section lives at its own sub-route, keeping concerns clearly separated: who you are, how you authenticate, how the interface looks, what notifications you receive, and which sidebar items are visible. All changes made here affect only the signed-in user's account and local preferences.
+
+## Settings Sections
+
+<CardGroup cols={2}>
+  <Card title="Datos Personales (Profile)" icon="user">
+    **Route:** `/settings`
+
+    Displays the user's read-only identity information pulled directly from their account record: first name (`nombre1`), first surname (`apellido1`), cédula de identidad, correo electrónico, and system role. These fields are managed by an administrator through the [Users module](/features/users) and cannot be edited here.
+  </Card>
+  <Card title="Account" icon="gear">
+    **Route:** `/settings/account`
+
+    Account-level preferences including display name, date of birth, and preferred interface language. Supported languages include English, French, German, Spanish, Portuguese, Russian, Japanese, Korean, and Chinese. The selected language controls the dashboard's UI copy.
+  </Card>
+  <Card title="Cambio de Contraseña (Password)" icon="key">
+    **Route:** `/settings/password`
+
+    Allows the signed-in user to change their own password without administrator involvement. The form requires the current password for verification, a new password (minimum 6 characters), and a confirmation field that must match the new password exactly. All three fields must pass validation before the update is submitted.
+  </Card>
+  <Card title="Appearance" icon="palette">
+    **Route:** `/settings/appearance`
+
+    Controls the visual theme and font family used throughout the dashboard. The theme can be set to **Light** or **Dark**. The font family is selected from a dropdown of available options. Both preferences are applied immediately on save and persisted in browser cookies so they survive page reloads.
+  </Card>
+  <Card title="Notifications" icon="bell">
+    **Route:** `/settings/notifications`
+
+    Manages notification preferences. Users can choose their notification scope — all messages, direct messages and mentions only, or none. Email notification categories include communication emails, marketing emails, social emails, and security emails (security emails are always enabled and cannot be disabled). A separate option controls whether a different notification profile applies to mobile devices.
+  </Card>
+  <Card title="Display" icon="layout">
+    **Route:** `/settings/display`
+
+    Controls which items appear in the sidebar navigation. Users check or uncheck sidebar items (Recents, Home, Applications, Desktop, Downloads, Documents) to tailor the navigation to their workflow. At least one item must remain selected.
+  </Card>
+</CardGroup>
+
+## Sidebar Navigation
+
+The Settings layout uses a persistent left sidebar that lists all available sections. On desktop the sidebar is sticky so it remains visible while you scroll through longer form pages. On smaller screens the sidebar collapses and sections are accessed sequentially.
+
+The sidebar currently exposes two primary navigation items in the application:
+
+| Item | Route | Description |
+|---|---|---|
+| Datos Personales | `/settings` | Profile information view |
+| Cambio de Contraseña | `/settings/password` | Password change form |
+
+Additional sections (Account, Appearance, Notifications, Display) are accessible via their direct routes.
+
+## Appearance and Theme Persistence
+
+<Note>
+  Theme (`light` / `dark`) and font family selections are stored in **browser cookies** and applied on every page load. Changes take effect immediately when you click **Update preferences** — no page refresh is required.
+</Note>
+
+## RTL and Layout Direction
+
+Corpointa includes support for right-to-left (RTL) text direction. The layout direction can be toggled from the **Config Drawer**, which is accessible via the toolbar icon in the top header bar on every page. This setting adjusts the entire interface layout and is independent of the Settings page.
+
+## Password Requirements
+
+<Warning>
+  The new password must be **at least 6 characters** long. The confirmation field must match exactly. Submitting a mismatched confirmation will display a validation error and prevent the update from being sent to the server.
+</Warning>
+
+## Notification Preferences Reference
+
+| Preference | Default | Can Disable? | Description |
+|---|---|---|---|
+| All new messages | — | — | Notify on every new message |
+| Direct messages and mentions | — | — | Notify only on direct interaction |
+| Nothing | — | — | Silence all notifications |
+| Communication emails | Off | Yes | Account activity emails |
+| Marketing emails | Off | Yes | New product and feature announcements |
+| Social emails | On | Yes | Friend requests, follows, and similar |
+| Security emails | On | **No** | Login and security alerts — always active |

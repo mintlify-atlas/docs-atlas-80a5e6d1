@@ -1,0 +1,159 @@
+---
+title: "Customize Corpointa Themes, Colors, and Dark Mode"
+sidebarTitle: "Theming"
+description: "Corpointa supports light, dark, and system themes using CSS variables with TailwindCSS v4. Users can switch themes in Settings, and the preference persists via cookie."
+---
+
+Corpointa's visual styling is built on **TailwindCSS v4** and a CSS variable system that separates color tokens from layout defaults. Every color used across the UI resolves through a CSS custom property, meaning you can retheme the entire application by overriding a small set of variables in a single stylesheet — no Tailwind config rebuild required.
+
+## Theme Modes
+
+Corpointa ships with three theme modes: **light**, **dark**, and **system**.
+
+- **Light** — uses the default `:root` variable values defined in `theme.css`
+- **Dark** — overrides those variables with the `.dark` class ruleset
+- **System** — follows the operating system's `prefers-color-scheme` media query and switches automatically if the OS preference changes
+
+Users select their preferred mode in **Settings → Appearance** using a radio group. The selection is immediately applied to the document and stored in the `vite-ui-theme` cookie (with a 1-year expiry) so it is restored on every subsequent page load before the first render — no flash of the wrong theme.
+
+<Note>
+  Theme changes in Settings apply immediately to the entire UI without a page reload.
+</Note>
+
+## CSS Variable System
+
+All color values are defined as CSS custom properties (CSS variables) and organized into two modular files under `src/styles/`:
+
+- **`theme.css`** — the primary color token file. Defines all design tokens under `:root` for light mode and under `.dark` for dark mode. Also contains the `@theme inline` block that maps Tailwind utility classes to these variables, plus extended color palettes for primary, secondary, tertiary, and neutral scales.
+- **`index.css`** — the base stylesheet. Imports Tailwind, `tw-animate-css`, and `theme.css`. Contains `@layer base` resets, global defaults (body font, scrollbar styles, mobile input sizing), and custom utility classes like `no-scrollbar` and `faded-bottom`.
+
+The token structure in `theme.css` covers the full shadcn/ui color surface:
+
+```css theme.css
+:root {
+  --radius: 0.625rem;
+  --background: #FFFFFF;
+  --foreground: #0F172A;
+  --primary: #0F172A;
+  --primary-foreground: #FFFFFF;
+  --secondary: #FACC15;
+  --secondary-foreground: #231B00;
+  --muted: #F8FAFC;
+  --muted-foreground: #747779;
+  --accent: #FFF0CA;
+  --accent-foreground: #231B00;
+  --destructive: #EF4444;
+  --border: #E0E3E5;
+  --input: #E0E3E5;
+  --ring: #0F172A;
+  /* sidebar tokens, chart tokens, ... */
+}
+
+.dark {
+  --background: #0F172A;
+  --foreground: #EEF0FF;
+  --primary: #DAE2FD;
+  --primary-foreground: #0F172A;
+  /* ... */
+}
+```
+
+Tailwind reads these variables through `@theme inline`, so utility classes like `bg-primary` or `text-muted-foreground` automatically reflect whichever set of values is active.
+
+## Dark Mode
+
+Dark mode is toggled by adding or removing the `dark` class on the `<html>` element. The `ThemeProvider` context handles this:
+
+```typescript
+const applyTheme = (resolvedTheme: 'light' | 'dark') => {
+  const root = window.document.documentElement
+  root.classList.remove('light', 'dark')
+  root.classList.add(resolvedTheme)
+}
+```
+
+The custom Tailwind dark variant is declared in `index.css` as:
+
+```css index.css
+@custom-variant dark (&:is(.dark *));
+```
+
+This means any `dark:` utility class activates whenever an ancestor element carries the `dark` class — which is the `<html>` element in practice. Shadcn/ui components use this variant internally for their dark-mode styles, and you can use `dark:` prefixes freely in your own component overrides.
+
+## RTL Support
+
+Corpointa supports right-to-left layouts for Arabic, Hebrew, and other RTL languages. The text direction is managed by `DirectionProvider` and toggled from the **Config Drawer** under the **Direction** section, which offers LTR and RTL options.
+
+When RTL is activated, `dir="rtl"` is set on the `<html>` element:
+
+```typescript
+useEffect(() => {
+  const htmlElement = document.documentElement
+  htmlElement.setAttribute('dir', dir)
+}, [dir])
+```
+
+The direction preference is stored in the `dir` cookie (1-year expiry) and restored on load. Radix UI components (used by all shadcn/ui primitives) receive the direction value through `@radix-ui/react-direction`'s `DirectionProvider`, so popover positions, dropdown alignments, and sidebar chevron directions all flip automatically with zero extra configuration.
+
+## shadcn/ui Components
+
+All UI primitives in Corpointa are sourced from **shadcn/ui**, which is built on **Radix UI** (for accessible, unstyled primitives) and **TailwindCSS** (for styling). The project uses the `new-york` style variant with CSS variables enabled.
+
+The `components.json` file in the project root controls how the shadcn CLI generates components:
+
+```json components.json
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "src/styles/index.css",
+    "baseColor": "slate",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components/ui",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
+  },
+  "iconLibrary": "lucide"
+}
+```
+
+Key settings:
+- `"cssVariables": true` — all component colors are driven by CSS variables, not hard-coded Tailwind values
+- `"baseColor": "slate"` — the neutral palette baseline used when generating new components
+- `"css": "src/styles/index.css"` — the stylesheet the CLI will update when adding components
+
+## Overriding Colors
+
+To change the primary brand color across the entire application, override the `--primary` and `--primary-foreground` CSS variables in a stylesheet that loads after `theme.css`:
+
+```css
+/* src/styles/overrides.css */
+:root {
+  --primary: #1D4ED8;           /* Your brand blue */
+  --primary-foreground: #FFFFFF;
+}
+
+.dark {
+  --primary: #93C5FD;
+  --primary-foreground: #1E3A5F;
+}
+```
+
+Then import this file in `index.css` after the `theme.css` import:
+
+```css src/styles/index.css
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import './theme.css';
+@import './overrides.css'; /* your overrides */
+```
+
+The same pattern applies to any design token: `--secondary`, `--accent`, `--destructive`, `--radius`, sidebar tokens, and chart colors.

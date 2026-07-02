@@ -1,0 +1,220 @@
+---
+title: "Authentication Flow and Session Management in Corpointa"
+sidebarTitle: "Authentication"
+description: "Corpointa supports built-in JWT authentication and optional Clerk integration. Learn how tokens are stored, refreshed, and attached to API requests."
+---
+
+Corpointa ships with two authentication modes: a **built-in JWT flow** that talks directly to the Corpointa backend, and an **optional Clerk integration** activated by a single environment variable. Both modes share the same `_authenticated` route guard and the same `SessionWarning` component — the difference is entirely in how credentials are collected and how the initial token is obtained.
+
+## Built-in JWT Auth
+
+### Sign-In Request
+
+The sign-in form collects a `cedula` (national ID) and `contraseña` (password) and posts them to `POST /auth/login`:
+
+```ts
+// src/features/auth/api/auth-api.ts
+
+export interface LoginCredentials {
+  cedula: string
+  contraseña: string
+}
+
+export interface LoginResponse {
+  token: string
+  user: {
+    id_usuario: number
+    cedula: string
+    nombre1: string
+    apellido1: string
+    correo: string
+    rol: string
+  }
+}
+
+export async function loginUser(
+  credentials: LoginCredentials
+): Promise<LoginResponse> {
+  const response = await apiClient.post<LoginResponse>('/auth/login', credentials)
+  return response.data
+}
+```
+
+On success the server returns a signed JWT in `token` alongside the authenticated user's profile.
+
+### Token & User Storage
+
+After a successful login the application writes both values to cookies via `useAuthStore`:
+
+```ts
+// src/stores/auth-store.ts (key cookie names)
+const ACCESS_TOKEN = 'thisisjustarandomstring'
+const USER_DATA    = 'user_data'
+```
+
+- The raw JWT string is JSON-serialised and stored in the `thisisjustarandomstring` cookie.
+- The user object is JSON-serialised and stored in the `user_data` cookie.
+- Both cookies are read back at application startup so sessions survive a full-page reload.
+
+### `useAuthStore` Interface
+
+```ts
+interface AuthUser {
+  id_usuario: number
+  cedula: string
+  nombre1: string
+  apellido1: string
+  correo: string
+  rol: string
+}
+
+interface AuthState {
+  auth: {
+    // Current user — null when unauthenticated
+    user: AuthUser | null
+    setUser: (user: AuthUser | null) => void
+
+    // JWT string — empty string when unauthenticated
+    accessToken: string
+    setAccessToken: (accessToken: string) => void
+    resetAccessToken: () => void
+
+    // Decoded expiry timestamp in milliseconds (null when no token)
+    tokenExp: number | null
+
+    // Clears token + user from state and cookies (full sign-out)
+    reset: () => void
+  }
+}
+```
+
+<Note>
+  `useAuthStore` is a Zustand store. Access it in React components with the standard selector pattern:
+  ```ts
+  const user = useAuthStore((state) => state.auth.user)
+  const reset = useAuthStore((state) => state.auth.reset)
+  ```
+  Or read state outside of React (e.g. in route guards) with `useAuthStore.getState().auth`.
+</Note>
+
+### Request Interceptor
+
+The shared `apiClient` in `src/lib/api-client.ts` attaches the JWT to every outgoing request automatically. On each request it reads the `thisisjustarandomstring` cookie, JSON-parses the value, and sets the `Authorization` header:
+
+```ts
+apiClient.interceptors.request.use((config) => {
+  const cookieName  = 'thisisjustarandomstring'
+  const cookieValue = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith(`${cookieName}=`))
+    ?.split('=')[1]
+
+  if (cookieValue) {
+    try {
+      const token = JSON.parse(decodeURIComponent(cookieValue))
+      if (token) config.headers.Authorization = `Bearer ${token}`
+    } catch {
+      // invalid cookie — silently ignore
+    }
+  }
+  return config
+})
+```
+
+No component or query hook ever needs to manually set an `Authorization` header — the interceptor handles it transparently for every request made through `apiClient`.
+
+### Token Expiry & Refresh
+
+Token lifecycle is managed through helpers in `src/lib/token-utils.ts`:
+
+| Helper | Description |
+|---|---|
+| `getTokenExp(token)` | Decodes the JWT payload and returns the `exp` claim in **milliseconds** |
+| `getTokenRemainingTime(token)` | Returns milliseconds until expiry (0 when expired) |
+| `isTokenExpiringSoon(token, thresholdMs)` | Returns `true` when expiry is within the threshold window (default 2 minutes) |
+| `hasTokenExpired(token)` | Returns `true` when the token is past its `exp` timestamp |
+
+When the token is nearing expiry, the `SessionWarning` component prompts the user to extend their session by calling `POST /auth/refresh-token`:
+
+```ts
+// src/features/auth/api/auth-api.ts
+export async function refreshToken(): Promise<{ token: string }> {
+  const response = await apiClient.post<{ token: string }>('/auth/refresh-token')
+  return response.data
+}
+```
+
+The new token is then passed to `auth.setAccessToken()`, which writes it to the cookie and updates `tokenExp`.
+
+### Global 401 Handling
+
+A `QueryCache.onError` handler in `src/main.tsx` intercepts every 401 response from TanStack Query and triggers a full sign-out, then redirects to the sign-in page with the current URL as the `redirect` search param so the user lands back in the right place after re-authenticating:
+
+```ts
+queryCache: new QueryCache({
+  onError: (error) => {
+    if (error instanceof AxiosError && error.response?.status === 401) {
+      toast.error('Session expired!')
+      useAuthStore.getState().auth.reset()
+      router.navigate({ to: '/sign-in-2', search: { redirect } })
+    }
+  },
+}),
+```
+
+---
+
+## Clerk Auth (Optional)
+
+Corpointa includes a parallel Clerk-powered auth path for organisations that prefer a hosted identity provider.
+
+<Steps>
+  <Step title="Install the Clerk SDK">
+    The `@clerk/react` package is already listed as a dependency. No additional installation is needed.
+  </Step>
+  <Step title="Set the publishable key">
+    Add your Clerk publishable key to `.env`:
+    ```bash
+    VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+    ```
+    The presence of this variable activates the Clerk code paths at runtime.
+  </Step>
+  <Step title="Use Clerk routes">
+    Clerk-specific sign-in, sign-up, and forgot-password pages live under `src/routes/clerk/` and mirror the default auth routes. They use `@clerk/react` hooks (`useSignIn`, `useSignUp`) instead of the built-in `loginUser` API function.
+  </Step>
+</Steps>
+
+<Warning>
+  Clerk auth and built-in JWT auth are mutually exclusive at runtime. Do **not** set `VITE_CLERK_PUBLISHABLE_KEY` when using the built-in JWT backend — doing so will route sign-in traffic to Clerk's hosted infrastructure instead of your API.
+</Warning>
+
+---
+
+## Protected Routes
+
+All application pages (dashboard, inventory modules, admin screens) are nested under the `_authenticated` layout route. The route's `beforeLoad` hook runs before any child component renders:
+
+```ts
+// src/routes/_authenticated/route.tsx
+export const Route = createFileRoute('/_authenticated')({
+  beforeLoad: ({ location }) => {
+    const { auth } = useAuthStore.getState()
+    if (!auth.user) {
+      throw redirect({
+        to: '/sign-in-2',
+        search: { redirect: location.href },
+      })
+    }
+  },
+  component: AuthenticatedLayout,
+})
+```
+
+<CardGroup cols={2}>
+  <Card title="Unauthenticated redirect" icon="right-to-bracket">
+    If `auth.user` is `null` when the route loads, the user is immediately redirected to `/sign-in-2`. The current URL is passed as the `redirect` search param so the sign-in page can return the user to their intended destination.
+  </Card>
+  <Card title="Session warning" icon="triangle-exclamation">
+    `AuthenticatedLayout` renders `<SessionWarning />` alongside the page content. This component monitors `tokenExp` and displays a countdown dialog when fewer than 2 minutes remain, giving the user the opportunity to refresh before their session expires.
+  </Card>
+</CardGroup>

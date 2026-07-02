@@ -1,0 +1,150 @@
+---
+title: "Employees: Track Staff Who Receive Material Dispatches"
+sidebarTitle: "Employees"
+description: "The Employees module registers staff members in Corpointa. Each employee belongs to a destination and can be assigned as the recipient of a material dispatch."
+---
+
+Employees (*empleados*) are the internal staff members who receive materials when a dispatch is processed. Every employee record is linked to a destination — the office, workshop, or department where they are based — and can be flagged as active or inactive to control whether they appear as selectable recipients. You manage all employees at the `/empleados` route.
+
+## Data Model
+
+Each employee record contains the following fields:
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id_empleado` | integer | Primary key, auto-generated | Unique numeric identifier for the employee |
+| `nombre_completo` | string | Required, max 200 chars | Full name of the employee |
+| `cedula` | string | Optional, max 30 chars | Venezuelan national identity number |
+| `telefono` | string | Optional, max 30 chars | Contact phone number |
+| `fk_id_destino` | integer | Required, foreign key | References `id_destino` in the Destinations table |
+| `activo` | boolean | Optional, defaults `true` | Whether the employee is currently active |
+| `nombre_destino` | string | Read-only (JOIN) | Destination name resolved server-side for display |
+
+<Note>
+  `fk_id_destino` must reference an existing destination record. If you attempt to create or update an employee with a destination ID that does not exist, the request will be rejected. [Set up your destinations](/features/destinations) before adding employees.
+</Note>
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="CRUD Table" icon="table">
+    The employee list displays `nombre_completo`, `cedula`, `telefono`, the resolved `nombre_destino`, and the active status. Records can be created, edited, and deleted via inline dialogs.
+  </Card>
+  <Card title="Filter by Destination" icon="filter">
+    Use the destination column filter to show only employees assigned to a specific office, workshop, or department.
+  </Card>
+  <Card title="Active / Inactive Toggle" icon="toggle-on">
+    Each row includes an active status indicator. Inactive employees are hidden from dispatch recipient selectors throughout the application but remain in the database for historical records.
+  </Card>
+  <Card title="Delete with Confirmation" icon="trash">
+    Deleting an employee opens a confirmation dialog. Employees who have been assigned to historical dispatches are preserved in those records even after deletion.
+  </Card>
+</CardGroup>
+
+## API Reference
+
+All endpoints operate on the `/empleados` resource and return or accept JSON.
+
+### List Employees
+
+<ResponseField name="GET /empleados" type="Empleado[]">
+  Returns an array of all employee records, including the server-resolved `nombre_destino`.
+
+  ```http
+  GET /empleados
+  ```
+
+  **Response**
+  ```json
+  [
+    {
+      "id_empleado": 5,
+      "nombre_completo": "Ana Rodríguez Pérez",
+      "cedula": "V-15678901",
+      "telefono": "+58 414 555 0300",
+      "fk_id_destino": 2,
+      "activo": true,
+      "nombre_destino": "Almacén Norte"
+    }
+  ]
+  ```
+</ResponseField>
+
+### Get Single Employee
+
+<ResponseField name="GET /empleados/:id" type="Empleado">
+  Returns a single employee by their `id_empleado`.
+
+  ```http
+  GET /empleados/5
+  ```
+</ResponseField>
+
+### Create Employee
+
+<ResponseField name="POST /empleados" type="Empleado">
+  Creates a new employee. The `id_empleado`, `nombre_destino`, and `activo` fields are managed by the server and should not be sent in the request body.
+
+  ```http
+  POST /empleados
+  Content-Type: application/json
+
+  {
+    "nombre_completo": "Carlos Méndez",
+    "cedula": "V-20456789",
+    "telefono": "+58 424 555 0400",
+    "fk_id_destino": 2
+  }
+  ```
+</ResponseField>
+
+### Update Employee
+
+<ResponseField name="PUT /empleados/:id" type="Empleado">
+  Updates an existing employee. You may include `activo` to toggle the employee's status.
+
+  ```http
+  PUT /empleados/5
+  Content-Type: application/json
+
+  {
+    "nombre_completo": "Ana Rodríguez Pérez",
+    "cedula": "V-15678901",
+    "telefono": "+58 414 555 0399",
+    "fk_id_destino": 2,
+    "activo": true
+  }
+  ```
+</ResponseField>
+
+### Delete Employee
+
+<ResponseField name="DELETE /empleados/:id" type="void">
+  Permanently removes an employee record.
+
+  ```http
+  DELETE /empleados/5
+  ```
+</ResponseField>
+
+## Field Validation
+
+<ParamField body="nombre_completo" type="string" required>
+  Full name of the employee. Must be between 1 and 200 characters.
+</ParamField>
+
+<ParamField body="fk_id_destino" type="integer" required>
+  The ID of the destination this employee is assigned to. Must reference an existing destination record.
+</ParamField>
+
+<ParamField body="cedula" type="string">
+  Venezuelan national identity number. Optional; max 30 characters.
+</ParamField>
+
+<ParamField body="telefono" type="string">
+  Contact phone number. Optional; max 30 characters.
+</ParamField>
+
+<ParamField body="activo" type="boolean">
+  Marks the employee as active (`true`) or inactive (`false`). Inactive employees are excluded from dispatch recipient selectors.
+</ParamField>

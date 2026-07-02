@@ -1,0 +1,135 @@
+---
+title: "Materials Catalog: Register and Manage Inventory Items"
+sidebarTitle: "Materials"
+description: "The Materials module lets you create, update, and delete inventory items with descriptions, categories, units of measure, and optional storage locations."
+---
+
+Materials are the core items tracked by Corpointa's inventory system. Each material record captures a human-readable description, its classification category, the unit of measure used to count it, and an optional physical storage location. The module is accessible at the `/materiales` route and provides a full-featured data table with search, filters, and inline dialogs for creating, editing, and deleting records.
+
+---
+
+## Data Model
+
+The `Material` type is derived from the Zod schema defined in `src/features/materiales/data/schema.ts`.
+
+```typescript
+export const materialSchema = z.object({
+  id_material:       z.number(),
+  descripcion:       z.string().min(1, { message: 'La descripción es requerida' }).max(50),
+  fk_id_categoria:   z.number({ required_error: 'La categoría es requerida' }),
+  fk_id_medida:      z.number({ required_error: 'La unidad de medida es requerida' }),
+  ubicacion:         z.string().max(30).optional().nullable(),
+  fk_id_usuario_crea:    z.number().optional(),
+  fecha_creacion:        z.string().optional(),
+  fecha_actualizacion:   z.string().nullable().optional(),
+  // Read-only JOIN fields
+  categoria_nombre:  z.string().optional(),
+  medida_nombre:     z.string().optional(),
+})
+
+export type Material = z.infer<typeof materialSchema>
+```
+
+### Field Reference
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id_material` | `number` | Auto-assigned | Primary key. |
+| `descripcion` | `string` | Required, max 50 chars | Human-readable name of the material. |
+| `fk_id_categoria` | `number` | Required | Foreign key to the `categorias` table. |
+| `fk_id_medida` | `number` | Required | Foreign key to the `unidades-medidas` table. |
+| `ubicacion` | `string \| null` | Optional, max 30 chars | Physical storage location (shelf, bin, room, etc.). |
+| `fk_id_usuario_crea` | `number` | Read-only | ID of the user who created the record. |
+| `fecha_creacion` | `string` | Read-only | ISO timestamp of record creation. |
+| `fecha_actualizacion` | `string \| null` | Read-only | ISO timestamp of last update. |
+| `categoria_nombre` | `string` | Read-only JOIN | Human-readable category name — populated by the API via JOIN, never sent on write. |
+| `medida_nombre` | `string` | Read-only JOIN | Human-readable unit name — populated by the API via JOIN, never sent on write. |
+
+<Note>
+  `categoria_nombre` and `medida_nombre` are resolved by the backend through a SQL JOIN and are included in GET responses for display purposes. Do **not** include them in `POST` or `PUT` request bodies — they will be ignored or may cause validation errors.
+</Note>
+
+---
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Searchable Data Table" icon="table">
+    The materials table supports column-level search and global filtering. Results update as you type, allowing quick lookup by description, category, or location.
+  </Card>
+  <Card title="Create Dialog" icon="plus">
+    A modal form lets users enter a description, choose a category and unit of measure from dropdowns, and optionally specify a storage location. Client-side Zod validation runs before submission.
+  </Card>
+  <Card title="Edit Dialog" icon="pencil">
+    Clicking the edit action on any row opens the same form pre-populated with the material's current values. Only the writable fields are sent to the API on save.
+  </Card>
+  <Card title="Delete Dialog" icon="trash">
+    A confirmation dialog prevents accidental deletions. The record is removed via `DELETE /materiales/:id`.
+  </Card>
+</CardGroup>
+
+---
+
+## API Operations
+
+All functions live in `src/features/materiales/api/materiales.ts` and use the shared `apiClient` (Axios instance with base URL and auth headers).
+
+| Method | Endpoint | Function | Description |
+|---|---|---|---|
+| `GET` | `/materiales` | `getMateriales()` | Returns all material records, each including `categoria_nombre` and `medida_nombre` via JOIN. |
+| `GET` | `/materiales/:id` | `getMaterial(id)` | Returns a single material by its `id_material`. |
+| `POST` | `/materiales` | `createMaterial(data)` | Creates a new material. Body must include `descripcion`, `fk_id_categoria`, and `fk_id_medida`. |
+| `PUT` | `/materiales/:id` | `updateMaterial(id, data)` | Updates an existing material. Same writable fields as POST. |
+| `DELETE` | `/materiales/:id` | `deleteMaterial(id)` | Permanently removes a material record. |
+
+### Create / Update Payload
+
+For both `POST` and `PUT`, send only the writable fields. The `id_material`, `categoria_nombre`, `medida_nombre`, `fk_id_usuario_crea`, `fecha_creacion`, and `fecha_actualizacion` fields are **excluded** from the payload type:
+
+```typescript
+type MaterialPayload = Omit<
+  Material,
+  | 'id_material'
+  | 'categoria_nombre'
+  | 'medida_nombre'
+  | 'fk_id_usuario_crea'
+  | 'fecha_creacion'
+  | 'fecha_actualizacion'
+>
+```
+
+### Example: Create a Material
+
+```typescript
+import { createMaterial } from '@/features/materiales/api/materiales'
+
+const newMaterial = await createMaterial({
+  descripcion:     'Cable UTP Cat6 (rollo 100m)',
+  fk_id_categoria: 3,
+  fk_id_medida:    1,
+  ubicacion:       'Estante A-12',
+})
+```
+
+### Example: GET Response
+
+```json
+[
+  {
+    "id_material": 7,
+    "descripcion": "Cable UTP Cat6 (rollo 100m)",
+    "fk_id_categoria": 3,
+    "fk_id_medida": 1,
+    "ubicacion": "Estante A-12",
+    "fk_id_usuario_crea": 1,
+    "fecha_creacion": "2025-05-10T08:30:00.000Z",
+    "fecha_actualizacion": null,
+    "categoria_nombre": "Eléctrico",
+    "medida_nombre": "Unidad"
+  }
+]
+```
+
+<Warning>
+  Deleting a material that has existing stock records (`existencias`) or movement history may be blocked by the backend with a foreign-key constraint error. Resolve associated records first before attempting deletion.
+</Warning>

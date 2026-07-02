@@ -1,0 +1,130 @@
+---
+title: "REST API Overview: Connect Corpointa to Your Backend"
+sidebarTitle: "Overview"
+description: "Corpointa communicates with a REST API backend over HTTP. Learn how the Axios client is configured, what the base URL default is, and how authentication tokens are attached."
+---
+
+Corpointa is a frontend-only single-page application (SPA) built with React. It does not contain any server-side logic of its own — instead, every data operation is delegated to a companion REST API backend over HTTP. All network communication is handled through a single, centrally configured Axios instance that lives in `src/lib/api-client.ts`. Understanding this client is the starting point for any integration or debugging work.
+
+## Base URL Configuration
+
+The API base URL is supplied at build time through the `VITE_API_URL` environment variable. When that variable is absent — for example in a local development environment — the client falls back to `http://localhost:4000`.
+
+```bash
+# .env.example
+VITE_API_URL=   # defaults to http://localhost:4000 when unset
+```
+
+The Axios instance is created with that base URL and a default `Content-Type` header:
+
+```typescript
+import axios from 'axios'
+
+const apiClient = axios.create({
+  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:4000',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+```
+
+Every API module in the application imports this single `apiClient` instance, so changing `VITE_API_URL` at build time is the only configuration required to point the entire frontend at a different backend.
+
+## Request Interceptor
+
+Before any request leaves the browser, a request interceptor reads the JWT access token from a cookie named `thisisjustarandomstring`, JSON-parses its value, and attaches it as an `Authorization: Bearer` header. This happens automatically for every call — individual API functions do not need to handle token attachment themselves.
+
+```typescript
+apiClient.interceptors.request.use((config) => {
+  const cookieName = 'thisisjustarandomstring'
+  const cookieValue = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith(`${cookieName}=`))
+    ?.split('=')[1]
+
+  if (cookieValue) {
+    try {
+      const token = JSON.parse(decodeURIComponent(cookieValue))
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
+    } catch {
+      // Invalid cookie — silently ignored
+    }
+  }
+
+  return config
+})
+```
+
+The cookie value is URI-decoded first and then JSON-parsed because the Zustand auth store serialises the token string with `JSON.stringify` before writing it to the cookie. If the cookie is absent or its value cannot be parsed, the interceptor skips token attachment without throwing, and the request is sent unauthenticated — the backend will return `401 Unauthorized`.
+
+## Content-Type
+
+All requests use `Content-Type: application/json` by default, set at instance creation time. This means every request body must be a JSON-serialisable JavaScript object. Axios handles serialisation automatically when you pass a plain object to `.post()`, `.put()`, or `.patch()`.
+
+<Note>
+  The one exception is the PDF download endpoint (`GET /salidas/:id/pdf`), which overrides `responseType` to `'blob'` on a per-request basis to handle the binary response correctly.
+</Note>
+
+## Response Handling
+
+Axios unwraps the HTTP response envelope automatically. API module functions return `response.data` directly, so callers receive the parsed JSON body without any additional unwrapping:
+
+```typescript
+// Example pattern used throughout all API modules
+const response = await apiClient.get('/materiales')
+return response.data  // the parsed JSON array — not the AxiosResponse wrapper
+```
+
+HTTP errors (4xx, 5xx) propagate as Axios errors. You can inspect the HTTP status code via `error.response?.status` and the error body via `error.response?.data`. If the network is unreachable, `error.response` will be `undefined` and `error.request` will be populated instead.
+
+<Tip>
+  Wrap API calls in `try/catch` and check `axios.isAxiosError(error)` to distinguish API errors from unexpected runtime errors in your error handlers.
+</Tip>
+
+## API Modules
+
+The frontend is organised into feature modules, each with a dedicated API file. The table below maps each feature to its base URL path.
+
+<CardGroup cols={2}>
+  <Card title="Auth" icon="key" href="/api/authentication">
+    Sign in and token refresh — `/auth`
+  </Card>
+  <Card title="Dashboard" icon="chart-bar">
+    Aggregate stats for the home screen — `/dashboard`
+  </Card>
+  <Card title="Materials" icon="box">
+    Inventory item catalogue — `/materiales`
+  </Card>
+  <Card title="Entries / Receipts" icon="arrow-down-to-bracket">
+    Control perceptivo (goods received notes) — `/controles-perceptivos`
+  </Card>
+  <Card title="Dispatches" icon="arrow-up-from-bracket">
+    Outbound material dispatches — `/salidas`
+  </Card>
+  <Card title="Stock" icon="warehouse">
+    Current stock levels and min/max thresholds — `/existencias`
+  </Card>
+  <Card title="Categories" icon="tag">
+    Material category catalogue — `/categorias`
+  </Card>
+  <Card title="Units of Measure" icon="ruler">
+    Unit of measure catalogue — `/unidades-medidas`
+  </Card>
+  <Card title="Destinations" icon="location-dot">
+    Destination / department catalogue — `/destinos`
+  </Card>
+  <Card title="Suppliers" icon="truck">
+    Supplier catalogue — `/proveedores`
+  </Card>
+  <Card title="Employees" icon="user-tie">
+    Employee records — `/empleados`
+  </Card>
+  <Card title="Users" icon="users">
+    System user accounts — `/users`
+  </Card>
+  <Card title="Audit Log" icon="clipboard-list">
+    Immutable activity log — `/bitacoras`
+  </Card>
+</CardGroup>

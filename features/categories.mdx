@@ -1,0 +1,99 @@
+---
+title: "Categories: Classify Materials by Type or Department"
+sidebarTitle: "Categories"
+description: "Categories group materials by type or department in Corpointa. Every material must belong to a category, which is used in filters and the stock-by-category analytics chart."
+---
+
+Categories provide the primary classification system for materials in Corpointa. Every material record requires a category assignment (`fk_id_categoria`), making categories a foundational reference table that must be populated before materials can be created. Categories are available at the `/categorias` route, and their names appear throughout the application — in the Materials table, filter dropdowns, and the **Stock por Categoría** bar chart on the Analytics tab of the Dashboard.
+
+---
+
+## Data Model
+
+The `Categoria` type is derived from the Zod schema in `src/features/categorias/data/schema.ts`.
+
+```typescript
+export const categoriaSchema = z.object({
+  id_categoria: z.number(),
+  nombre:       z.string().min(1, { message: 'El nombre es requerido' }).max(50),
+})
+
+export type Categoria = z.infer<typeof categoriaSchema>
+```
+
+### Field Reference
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id_categoria` | `number` | Auto-assigned | Primary key. Referenced as `fk_id_categoria` in material records. |
+| `nombre` | `string` | Required, max 50 chars | Display name for the category (e.g., `Eléctrico`, `Ferretería`, `Limpieza`). |
+
+---
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="CRUD Table" icon="table">
+    A simple data table lists all categories with their names. Inline action menus on each row provide access to edit and delete operations.
+  </Card>
+  <Card title="Create Dialog" icon="plus">
+    A compact modal form with a single `nombre` field and client-side Zod validation. The record is persisted via `POST /categorias`.
+  </Card>
+  <Card title="Edit Dialog" icon="pencil">
+    Pre-populates the form with the selected category's current name. Changes are saved via `PUT /categorias/:id`.
+  </Card>
+  <Card title="Referenced by Materials" icon="link">
+    Any category that has associated materials will appear in the category filter dropdown on the Materials table and contribute data to the Dashboard's Analytics chart.
+  </Card>
+</CardGroup>
+
+---
+
+## API Operations
+
+All functions live in `src/features/categorias/api/categorias.ts`.
+
+| Method | Endpoint | Function | Description |
+|---|---|---|---|
+| `GET` | `/categorias` | `getCategorias()` | Returns all category records. |
+| `GET` | `/categorias/:id` | `getCategoria(id)` | Returns a single category by `id_categoria`. |
+| `POST` | `/categorias` | `createCategoria(data)` | Creates a new category. Body: `{ nombre: string }`. |
+| `PUT` | `/categorias/:id` | `updateCategoria(id, data)` | Updates the name of an existing category. Body: `{ nombre: string }`. |
+| `DELETE` | `/categorias/:id` | `deleteCategoria(id)` | Permanently removes a category record. |
+
+### Create Payload
+
+When creating or updating a category, `id_categoria` is excluded from the request body:
+
+```typescript
+type CategoriaPayload = Omit<Categoria, 'id_categoria'>
+// { nombre: string }
+```
+
+### Example: Create a Category
+
+```typescript
+import { createCategoria } from '@/features/categorias/api/categorias'
+
+const category = await createCategoria({ nombre: 'Herramientas Manuales' })
+// Returns: { id_categoria: 8, nombre: 'Herramientas Manuales' }
+```
+
+### Example: GET /categorias Response
+
+```json
+[
+  { "id_categoria": 1, "nombre": "Eléctrico" },
+  { "id_categoria": 2, "nombre": "Ferretería" },
+  { "id_categoria": 3, "nombre": "Limpieza" },
+  { "id_categoria": 4, "nombre": "Herramientas Manuales" }
+]
+```
+
+<Warning>
+  Deleting a category that is currently assigned to one or more materials will likely be **blocked by the backend** with a foreign-key constraint error. Reassign or delete the associated materials before removing the category.
+</Warning>
+
+<Tip>
+  Create your full category taxonomy before onboarding materials. Well-defined categories make the **Stock por Categoría** analytics chart on the Dashboard significantly more useful for tracking inventory distribution across departments.
+</Tip>

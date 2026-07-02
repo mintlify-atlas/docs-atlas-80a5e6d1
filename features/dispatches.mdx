@@ -1,0 +1,212 @@
+---
+title: "Despachos: Issue and Track Outgoing Material Dispatches"
+sidebarTitle: "Dispatches"
+description: "Despachos (Salidas) record the delivery of materials to employees. Each dispatch can be validated, reviewed by finance and the president, and exported as a signed PDF acta."
+---
+
+**Despachos** (also referred to as *Salidas*) are the outbound movement records that capture the delivery of warehouse materials to employees. Accessible at `/salidas`, each Despacho documents who received the materials, why they were requested, and which specific stock items were issued in what quantities. Once created, a dispatch can be exported as a formal signed PDF *acta* — a physical document that serves as the official record of the handover.
+
+## Data Model
+
+The `Salida` schema represents a single dispatch record.
+
+<ResponseField name="id_salida" type="number" required>
+  Auto-generated primary key for the dispatch.
+</ResponseField>
+
+<ResponseField name="numero_salida" type="string" required>
+  Human-readable dispatch number (e.g. `SAL-001`). Must be unique.
+</ResponseField>
+
+<ResponseField name="fecha_salida" type="string" required>
+  ISO-8601 date string for when the dispatch occurred (e.g. `2025-01-20`).
+</ResponseField>
+
+<ResponseField name="existencia_validada" type="boolean" required>
+  Indicates whether available stock was confirmed before issuing the dispatch. Set to `true` when a warehouse operator has verified that the requested quantities are in stock.
+</ResponseField>
+
+<ResponseField name="motivo_solicitud" type="string | null">
+  Free-text explanation of why the materials are being dispatched (e.g. `"Mantenimiento mensual"`). Optional.
+</ResponseField>
+
+<ResponseField name="fk_id_empleado_recibe" type="number" required>
+  Foreign key referencing the employee (`empleados`) who is receiving the dispatched materials.
+</ResponseField>
+
+<ResponseField name="fk_id_gerente_finanzas" type="number | null">
+  Foreign key referencing the finance manager responsible for approving or reviewing the dispatch. Optional; set to `null` when no finance review is required.
+</ResponseField>
+
+<ResponseField name="fk_id_presidente" type="number | null">
+  Foreign key referencing the president for high-level approval. Optional; set to `null` when presidential sign-off is not required.
+</ResponseField>
+
+<ResponseField name="observacion" type="string | null">
+  Additional free-text notes about the dispatch. Optional.
+</ResponseField>
+
+---
+
+## Workflow
+
+A Despacho moves through a defined lifecycle from initial creation to final signed documentation.
+
+<Steps>
+  <Step title="Create the Dispatch">
+    A warehouse operator opens the **Nueva Salida de Almacén** dialog at `/salidas`, enters the dispatch number, date, and selects the employee who will receive the materials (`fk_id_empleado_recibe`). A reason (`motivo_solicitud`) may be provided to document the purpose of the request.
+  </Step>
+  <Step title="Validate Stock Availability">
+    Before adding material lines, the operator checks the **Existencia Validada** checkbox to confirm that the requested items are physically available in the warehouse. Setting `existencia_validada` to `true` signals that a stock check has been performed and the dispatch is cleared to proceed.
+  </Step>
+  <Step title="Add Material Lines">
+    Materials are selected from the live existencias list, which shows each item alongside its current available quantity (`cantidad_actual`). The operator enters the **Cantidad Entregada** for each item and clicks **Agregar** to add it to the dispatch table. Each stock item can only appear once per dispatch.
+  </Step>
+  <Step title="Link Approvers (Optional)">
+    If the dispatch requires formal sign-off, `fk_id_gerente_finanzas` and `fk_id_presidente` can be linked to the record to associate the relevant approvers before or after creation.
+  </Step>
+  <Step title="Submit and Generate the PDF Acta">
+    Clicking **Guardar Salida** persists the dispatch and decrements stock quantities on the backend. After saving, download the PDF acta from the dispatch list to obtain the formal signed document for physical records.
+  </Step>
+</Steps>
+
+<Note>
+  Saving a Despacho automatically decreases the warehouse stock (`existencias`) quantities for every material line in the dispatch. No separate stock adjustment step is needed.
+</Note>
+
+---
+
+## PDF Generation
+
+Each dispatch can be exported as a formatted PDF *acta* that serves as the official handover document. The download is triggered via the `downloadSalidaPdf` function in the salidas API client.
+
+**How it works:**
+
+1. Calls `GET /salidas/:id/pdf` with `responseType: 'blob'` to receive the binary PDF data.
+2. Creates a temporary in-memory object URL from the response blob.
+3. Programmatically clicks a hidden `<a>` element to trigger the browser's native file download.
+4. The file is saved as `acta-salida-{id}.pdf` (e.g. `acta-salida-42.pdf`).
+5. Cleans up by removing the temporary DOM element and revoking the object URL.
+
+```typescript
+import { downloadSalidaPdf } from '@/features/salidas/api/salidas'
+
+// Trigger download for dispatch with id_salida = 42
+await downloadSalidaPdf(42)
+// → saves "acta-salida-42.pdf" to the user's Downloads folder
+```
+
+In the dispatch list view, each row exposes a **PDF** button (with a `FileDown` icon) that calls `downloadSalidaPdf` directly with the row's `id_salida`.
+
+<Tip>
+  Download the PDF immediately after creating the dispatch to have the signed acta ready for physical filing. The PDF reflects the dispatch data at the time of the request — including material lines, employee recipient, and any associated approver references.
+</Tip>
+
+---
+
+## API Operations
+
+### List All Dispatches
+
+Returns all Salida records in the system.
+
+```http
+GET /salidas
+```
+
+```json
+[
+  {
+    "id_salida": 42,
+    "numero_salida": "SAL-001",
+    "fecha_salida": "2025-01-20",
+    "existencia_validada": true,
+    "motivo_solicitud": "Mantenimiento mensual",
+    "fk_id_empleado_recibe": 7,
+    "fk_id_gerente_finanzas": 2,
+    "fk_id_presidente": null,
+    "observacion": null
+  }
+]
+```
+
+---
+
+### Create a Dispatch
+
+Creates a new Despacho and its material detail lines in a single request. The backend decrements warehouse stock for all materials in `detalles`.
+
+```http
+POST /salidas
+```
+
+**Request body:**
+
+```json
+{
+  "fecha_salida": "2025-01-20",
+  "motivo_solicitud": "Mantenimiento mensual",
+  "fk_id_empleado_recibe": 7,
+  "fk_id_gerente_finanzas": 2,
+  "observacion": null,
+  "detalles": [
+    { "fk_id_material": 5, "cantidad_entregada": 10 }
+  ]
+}
+```
+
+<ParamField body="numero_salida" type="string" required>
+  Unique dispatch number (e.g. `SAL-001`).
+</ParamField>
+
+<ParamField body="fecha_salida" type="string" required>
+  Dispatch date in `YYYY-MM-DD` format.
+</ParamField>
+
+<ParamField body="existencia_validada" type="boolean">
+  Whether stock availability was confirmed prior to dispatch. Defaults to `false`.
+</ParamField>
+
+<ParamField body="motivo_solicitud" type="string">
+  Reason for the material request. Optional.
+</ParamField>
+
+<ParamField body="fk_id_empleado_recibe" type="number" required>
+  ID of the employee receiving the materials.
+</ParamField>
+
+<ParamField body="fk_id_gerente_finanzas" type="number">
+  ID of the finance manager approver. Optional.
+</ParamField>
+
+<ParamField body="fk_id_presidente" type="number">
+  ID of the presidential approver. Optional.
+</ParamField>
+
+<ParamField body="observacion" type="string">
+  Additional notes. Optional; pass `null` to omit.
+</ParamField>
+
+<ParamField body="detalles" type="array" required>
+  Array of material lines. Each element requires `fk_id_material` (number) and `cantidad_entregada` (number > 0). Minimum one item required.
+</ParamField>
+
+---
+
+### Download PDF Acta
+
+Returns the binary PDF document for the specified dispatch. The client must set `responseType: 'blob'` to handle the binary response correctly.
+
+```http
+GET /salidas/:id/pdf
+```
+
+<ParamField path="id" type="number" required>
+  The `id_salida` of the dispatch whose acta should be downloaded.
+</ParamField>
+
+**Response:** Binary PDF blob. The frontend `downloadSalidaPdf(id)` function handles blob-to-file conversion automatically and saves the file as `acta-salida-{id}.pdf`.
+
+<Warning>
+  Requesting the PDF for a dispatch `id` that does not exist will return an error. Always confirm the dispatch was successfully created before attempting to download its acta.
+</Warning>

@@ -1,0 +1,170 @@
+---
+title: "Stock Levels: Monitor Inventory Quantities and Thresholds"
+sidebarTitle: "Stock"
+description: "Existencias tracks current stock per material with configurable minimum and maximum thresholds. Low-stock items are flagged on the dashboard and in the stock table."
+---
+
+Existencias (stock levels) represent the current on-hand quantity of each material in the warehouse. Every material registered in the catalog has a corresponding existencia record that tracks its `cantidad_actual` alongside configurable `stock_minimo` and `stock_maximo` thresholds. The module is accessible at the `/existencias` route and provides two views: a live stock table and an Acta-based movement history that aggregates controles perceptivos (entries) and salidas (exits).
+
+---
+
+## Data Model
+
+The `Existencia` type is derived from the Zod schema in `src/features/existencias/data/schema.ts`.
+
+```typescript
+export const existenciaSchema = z.object({
+  id_existencia:        z.number(),
+  fk_id_material:       z.number(),
+  material_descripcion: z.string().optional(),
+  cantidad_actual:      z.number(),
+  stock_minimo:         z.number(),
+  stock_maximo:         z.number(),
+})
+
+export type Existencia = z.infer<typeof existenciaSchema>
+```
+
+### Field Reference
+
+| Field | Type | Description |
+|---|---|---|
+| `id_existencia` | `number` | Primary key of the stock record. |
+| `fk_id_material` | `number` | Foreign key linking to the material in the catalog. |
+| `material_descripcion` | `string` | Material name, resolved via JOIN — read-only. |
+| `cantidad_actual` | `number` | Current on-hand quantity. Updated automatically by entry and exit movements. |
+| `stock_minimo` | `number` | Minimum acceptable stock level. Items below this value trigger a low-stock alert. |
+| `stock_maximo` | `number` | Maximum expected stock level, used for reorder planning. |
+
+---
+
+## Acta View
+
+In addition to the stock table, the `/existencias` route provides an Acta (movement record) view that consolidates all entries and exits into unified records.
+
+```typescript
+export const actaSchema = z.object({
+  id_acta:               z.number(),
+  numero_acta:           z.string(),
+  tipo:                  z.enum(['Entrada', 'Salida']),
+  fecha:                 z.string(),             // ISO date string
+  numero_requerimiento:  z.string().nullable().optional(),
+  numero_compra:         z.string().nullable().optional(),
+  detalles:              z.array(detalleActaSchema),
+})
+
+export const detalleActaSchema = z.object({
+  fk_id_material:       z.number(),
+  material_descripcion: z.string(),
+  cantidad:             z.number(),
+})
+```
+
+### Acta Field Reference
+
+| Field | Type | Description |
+|---|---|---|
+| `id_acta` | `number` | Internal ID (mirrors the source record's ID). |
+| `numero_acta` | `string` | Human-readable reference number (e.g., `CON-0021`, `SAL-0042`). |
+| `tipo` | `"Entrada" \| "Salida"` | Movement direction. |
+| `fecha` | `string` | ISO date of the movement. |
+| `numero_requerimiento` | `string \| null` | Associated purchase requisition number, if applicable. |
+| `numero_compra` | `string \| null` | Associated purchase order number, if applicable. |
+| `detalles` | `DetalleActa[]` | Line items — one entry per material moved in this act. |
+
+### How Actas Are Assembled
+
+The `getActas()` function fetches from two separate API resources and merges them:
+
+1. **Entries** — `GET /controles-perceptivos` (perception control records). Each record is then expanded with `GET /controles-perceptivos/:id` to fetch its detail lines.
+2. **Exits** — `GET /salidas`. Each record is expanded with `GET /salidas/:id_salida` for its line items.
+
+Both collections are mapped to the unified `Acta` shape and returned as a single sorted array. If the salidas endpoint is unavailable, it gracefully returns an empty array rather than failing.
+
+```typescript
+import { getActas } from '@/features/existencias/api/existencias'
+
+const actas = await getActas()
+// Returns Acta[] combining Entrada and Salida records
+```
+
+---
+
+## Low-Stock Alerts
+
+When a material's `cantidad_actual` falls below its `stock_minimo`, two things happen:
+
+1. **Dashboard KPI** — The **Stock Bajo** card on the Dashboard increments its count to include this material, and the value is rendered in destructive red.
+2. **Stock table flag** — The row for that material is visually highlighted in the Existencias table so operators can prioritise restocking.
+
+<Warning>
+  Low-stock detection is calculated server-side. The `stockBajo` value on the Dashboard is a pre-computed count returned by `GET /dashboard/stats`. The Existencias table applies client-side conditional styling by comparing `cantidad_actual` against `stock_minimo` on each row.
+</Warning>
+
+---
+
+## Updating Thresholds
+
+Stock thresholds (`stock_minimo` and `stock_maximo`) can be adjusted at any time through the edit dialog in the Existencias table. The `cantidad_actual` field is **read-only** and is managed exclusively by entry/exit movement records.
+
+### Endpoint
+
+```bash
+PUT /existencias/:id
+```
+
+### Payload
+
+```typescript
+{
+  stock_minimo: number
+  stock_maximo: number
+}
+```
+
+### Example
+
+```typescript
+import { updateExistenciaLimits } from '@/features/existencias/api/existencias'
+
+await updateExistenciaLimits(14, {
+  stock_minimo: 10,
+  stock_maximo: 100,
+})
+```
+
+<Note>
+  Only `stock_minimo` and `stock_maximo` are accepted on `PUT /existencias/:id`. Attempting to set `cantidad_actual` directly through this endpoint has no effect — quantities are managed through the controles-perceptivos and salidas workflows.
+</Note>
+
+---
+
+## API Operations
+
+All functions live in `src/features/existencias/api/existencias.ts`.
+
+| Method | Endpoint | Function | Description |
+|---|---|---|---|
+| `GET` | `/existencias` | `getExistencias()` | Returns all stock records with `material_descripcion` resolved via JOIN. |
+| `PUT` | `/existencias/:id` | `updateExistenciaLimits(id, limits)` | Updates `stock_minimo` and `stock_maximo` for a specific stock record. |
+| `GET` | `/controles-perceptivos` | _(internal, used by `getActas()`)_ | Fetches all entry perception-control records. |
+| `GET` | `/controles-perceptivos/:id` | _(internal, used by `getActas()`)_ | Fetches line-item details for a single entry record. |
+| `GET` | `/salidas` | _(internal, used by `getActas()`)_ | Fetches all exit dispatch records. |
+| `GET` | `/salidas/:id` | _(internal, used by `getActas()`)_ | Fetches line-item details for a single exit record. |
+
+### Example: GET /existencias Response
+
+```json
+[
+  {
+    "id_existencia": 14,
+    "fk_id_material": 7,
+    "material_descripcion": "Cable UTP Cat6 (rollo 100m)",
+    "cantidad_actual": 8,
+    "stock_minimo": 10,
+    "stock_maximo": 100
+  }
+]
+```
+
+In this example, `cantidad_actual` (8) is below `stock_minimo` (10), so this item contributes to the **Stock Bajo** KPI on the Dashboard.

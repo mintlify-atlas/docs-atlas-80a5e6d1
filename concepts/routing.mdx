@@ -1,0 +1,204 @@
+---
+title: "File-Based Routing with TanStack Router in Corpointa"
+sidebarTitle: "Routing"
+description: "Corpointa uses TanStack Router with file-based routing for automatic code-splitting, type-safe navigation, and search parameter synchronization."
+---
+
+Corpointa uses **TanStack Router** with its file-based routing convention: every file inside `src/routes/` automatically becomes a route, and the router plugin generates a fully type-safe `routeTree.gen.ts` at build time. This means route paths, search parameters, and navigation calls are all validated by TypeScript with zero manual type maintenance. The Vite plugin also enables automatic code-splitting so each route is only loaded when the user navigates to it.
+
+## Route Tree
+
+```
+src/routes/
+├── __root.tsx                    # Root layout
+├── (auth)/                       # Auth pages (unauthenticated)
+│   ├── forgot-password.tsx
+│   ├── otp.tsx
+│   ├── sign-in-2.tsx
+│   └── sign-up.tsx
+├── (errors)/                     # HTTP error pages (401, 403, 404, 500, 503)
+├── _authenticated/               # Protected layout
+│   ├── route.tsx                 # Auth guard
+│   ├── index.tsx                 # Dashboard (/)
+│   ├── materiales/
+│   ├── entradas/                 # Control Perceptivo
+│   │   ├── route.tsx
+│   │   ├── index.tsx
+│   │   └── crear.tsx             # Create receipt form
+│   ├── salidas/
+│   │   └── index.lazy.tsx        # Lazily-loaded dispatches list
+│   ├── existencias/
+│   │   └── index.lazy.tsx        # Lazily-loaded stock levels
+│   ├── categorias/
+│   ├── unidades-medida/
+│   ├── destinos/
+│   ├── proveedores/
+│   ├── empleados/
+│   ├── usuarios/
+│   ├── bitacora/
+│   ├── chats/
+│   ├── tasks/
+│   ├── apps/
+│   └── settings/
+└── clerk/                        # Clerk-specific auth variants
+```
+
+<Note>
+  Folders wrapped in parentheses — `(auth)` and `(errors)` — are **pathless layout groups**. They let you share layouts or file organisation without adding segments to the URL.
+</Note>
+
+## The `createFileRoute` Pattern
+
+Every route file exports a single `Route` constant created by `createFileRoute`. The string argument is the route path and is validated against the generated route tree at compile time.
+
+```ts
+// src/routes/_authenticated/index.tsx  →  URL: /
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/_authenticated/')({
+  component: DashboardPage,
+})
+```
+
+```ts
+// src/routes/_authenticated/entradas/crear.tsx  →  URL: /entradas/crear
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/_authenticated/entradas/crear')({
+  component: CrearEntradaPage,
+})
+```
+
+<Tip>
+  Because route paths are inferred from the file system, renaming or moving a route file automatically updates the generated type definitions. TypeScript will catch any broken `router.navigate()` calls or `<Link>` props that reference the old path.
+</Tip>
+
+## Root Layout (`__root.tsx`)
+
+The root route is created with `createRootRouteWithContext` so the `QueryClient` instance is available to every route via context. It renders the navigation progress bar, the global `<Toaster>`, and developer tools (Router devtools and React Query devtools) in `development` mode only.
+
+```ts
+// src/routes/__root.tsx
+export const Route = createRootRouteWithContext<{
+  queryClient: QueryClient
+}>()({
+  component: () => (
+    <>
+      <NavigationProgress />
+      <Outlet />
+      <Toaster duration={5000} />
+      {import.meta.env.MODE === 'development' && (
+        <>
+          <ReactQueryDevtools buttonPosition="bottom-left" />
+          <TanStackRouterDevtools position="bottom-right" />
+        </>
+      )}
+    </>
+  ),
+  notFoundComponent: NotFoundError,
+  errorComponent: GeneralError,
+})
+```
+
+## Protected Layout (`_authenticated/route.tsx`)
+
+The `_authenticated` prefix marks this as a **pathless layout route** — it matches all child routes but adds no URL segment. Its `beforeLoad` hook enforces authentication before any child component is allowed to render:
+
+```ts
+// src/routes/_authenticated/route.tsx
+export const Route = createFileRoute('/_authenticated')({
+  beforeLoad: ({ location }) => {
+    const { auth } = useAuthStore.getState()
+    if (!auth.user) {
+      throw redirect({
+        to: '/sign-in-2',
+        search: { redirect: location.href },
+      })
+    }
+  },
+  component: AuthenticatedLayout,
+})
+```
+
+`AuthenticatedLayout` renders the `AppSidebar`, the `SessionWarning` dialog, and a `<SidebarInset>` that hosts the active page via `<Outlet />`.
+
+## Layout Wrappers (`route.tsx` files)
+
+Nested `route.tsx` files act as **layout wrappers** for all sibling and child routes in the same directory. For example, `_authenticated/entradas/route.tsx` can wrap the receipts section in a feature-specific context provider or apply a shared loader without affecting the URL.
+
+```
+_authenticated/entradas/
+├── route.tsx      ← layout / context wrapper for /entradas/*
+├── index.tsx      ← /entradas
+└── crear.tsx      ← /entradas/crear
+```
+
+## Lazy Routes (`.lazy.tsx`)
+
+Routes with the `.lazy.tsx` suffix are **explicitly lazy-loaded** in addition to the automatic code-splitting applied to all routes. The router defers downloading and executing the component bundle until the user first navigates to that URL:
+
+```
+existencias/index.lazy.tsx   →  /existencias
+salidas/index.lazy.tsx       →  /salidas
+```
+
+This is useful for the heaviest pages (large data tables, complex charts) where you want the initial bundle to stay small even in development mode.
+
+## Search Parameter Synchronisation
+
+Table state — pagination page, page size, global text filter, and per-column filters — is synchronised bidirectionally with URL search parameters via the `useTableUrlState` hook from `src/hooks/use-table-url-state.ts`.
+
+```ts
+// Typical usage inside a feature route component
+const { search, navigate } = Route.useRouteContext()
+
+const tableState = useTableUrlState({
+  search,
+  navigate,
+  pagination: { defaultPageSize: 10 },
+  globalFilter: { enabled: true, key: 'filter' },
+  columnFilters: [
+    { columnId: 'rol',  searchKey: 'rol',  type: 'array' },
+    { columnId: 'name', searchKey: 'name', type: 'string' },
+  ],
+})
+```
+
+Because state lives in the URL, users can:
+
+- **Bookmark** any filtered or paginated table view.
+- **Share** a link that restores exact table state for a colleague.
+- Use the **browser back/forward** buttons to step through filter changes.
+
+## Automatic Code Splitting
+
+The TanStack Router plugin in `vite.config.ts` handles code splitting with zero configuration:
+
+```ts
+// vite.config.ts
+tanstackRouter({
+  target: 'react',
+  autoCodeSplitting: true,
+})
+```
+
+With `autoCodeSplitting: true`, every route file becomes its own async chunk in the production bundle. The router pre-fetches route chunks on `intent` (hover or pointer-down) so most navigations feel instantaneous:
+
+```ts
+// src/main.tsx
+const router = createRouter({
+  routeTree,
+  context: { queryClient },
+  defaultPreload: 'intent',
+  defaultPreloadStaleTime: 0,
+})
+```
+
+<CardGroup cols={2}>
+  <Card title="defaultPreload: 'intent'" icon="bolt">
+    When a user hovers over or presses down on a `<Link>`, the router begins prefetching that route's JavaScript chunk and running its `loader` function — so the page is often ready before the click completes.
+  </Card>
+  <Card title="defaultPreloadStaleTime: 0" icon="clock-rotate-left">
+    Prefetched data is never considered stale, so navigating back to a prefetched route does not trigger an unnecessary re-fetch.
+  </Card>
+</CardGroup>

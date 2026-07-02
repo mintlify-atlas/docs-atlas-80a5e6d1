@@ -1,0 +1,518 @@
+---
+title: "Complete REST API Endpoint Reference for Corpointa"
+sidebarTitle: "Endpoints"
+description: "Full reference of all Corpointa REST API endpoints — authentication, dashboard stats, materials, stock, movements, contacts, users, and audit logs."
+---
+
+This page is a comprehensive reference for every REST endpoint consumed by the Corpointa frontend. Endpoints and their request/response shapes have been extracted directly from the frontend API modules in `src/features/*/api/`. All endpoints (except `POST /auth/login` and `POST /auth/refresh-token`) require a valid `Authorization: Bearer <token>` header — see the [Authentication](/api/authentication) page for how to obtain a token.
+
+---
+
+## Authentication
+
+### `POST /auth/login`
+
+Authenticate a user and receive a JWT.
+
+<ParamField body="cedula" type="string" required>
+  The user's national ID number (e.g. `"V-12345678"`).
+</ParamField>
+
+<ParamField body="contraseña" type="string" required>
+  The user's plaintext password.
+</ParamField>
+
+<ResponseField name="token" type="string">
+  Signed JWT to include as `Authorization: Bearer <token>` on subsequent requests.
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  Authenticated user object: `id_usuario`, `cedula`, `nombre1`, `apellido1`, `correo`, `rol`.
+</ResponseField>
+
+---
+
+### `POST /auth/refresh-token`
+
+Exchange an existing (non-expired) token for a new one. No request body required — pass the current token in the `Authorization` header.
+
+<ResponseField name="token" type="string">
+  A freshly issued JWT with a new expiry.
+</ResponseField>
+
+---
+
+## Dashboard
+
+### `GET /dashboard/stats`
+
+Returns a single aggregated statistics object used to populate the home dashboard. No query parameters or request body.
+
+<ResponseField name="totalMateriales" type="number">
+  Total number of distinct material records in the catalogue.
+</ResponseField>
+
+<ResponseField name="totalExistencias" type="number">
+  Total number of stock records (one per material).
+</ResponseField>
+
+<ResponseField name="stockBajo" type="number">
+  Count of materials whose current stock level is at or below their configured minimum (`stock_minimo`).
+</ResponseField>
+
+<ResponseField name="entradasMes" type="number">
+  Number of control perceptivo (goods received) entries recorded in the current calendar month.
+</ResponseField>
+
+<ResponseField name="salidasMes" type="number">
+  Number of dispatch (salida) records recorded in the current calendar month.
+</ResponseField>
+
+<ResponseField name="movimientosMensuales" type="array">
+  Monthly movement summary for the chart. Each element contains:
+
+  <Expandable title="movimientosMensuales item">
+    <ResponseField name="mes" type="string">
+      Localised month name (e.g. `"Enero"`).
+    </ResponseField>
+    <ResponseField name="mes_num" type="string">
+      Zero-padded month number (e.g. `"01"`).
+    </ResponseField>
+    <ResponseField name="entradas" type="number">
+      Total entries for that month.
+    </ResponseField>
+    <ResponseField name="salidas" type="number">
+      Total dispatches for that month.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="ultimasSalidas" type="array">
+  The most recent dispatch records. Each element contains:
+
+  <Expandable title="ultimasSalidas item">
+    <ResponseField name="numero_salida" type="string">
+      Human-readable dispatch number.
+    </ResponseField>
+    <ResponseField name="fecha" type="string">
+      ISO 8601 date string.
+    </ResponseField>
+    <ResponseField name="recibe_nombre" type="string">
+      Full name of the employee who received the materials.
+    </ResponseField>
+    <ResponseField name="total_materiales" type="number">
+      Number of line items in the dispatch.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="stockPorCategoria" type="array">
+  Aggregated stock quantity broken down by category. Each element contains:
+
+  <Expandable title="stockPorCategoria item">
+    <ResponseField name="nombre" type="string">
+      Category name.
+    </ResponseField>
+    <ResponseField name="cantidad" type="number">
+      Total stock quantity across all materials in this category.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Materials
+
+Materials are the core inventory items managed by Corpointa.
+
+### `GET /materiales`
+
+Returns the full list of materials, including joined `categoria_nombre` and `medida_nombre` fields.
+
+**Response:** `Material[]`
+
+---
+
+### `GET /materiales/:id`
+
+Returns a single material record by its primary key.
+
+**Response:** `Material`
+
+---
+
+### `POST /materiales`
+
+Creates a new material record.
+
+<ParamField body="descripcion" type="string" required>
+  Name or description of the material. Maximum 50 characters.
+</ParamField>
+
+<ParamField body="fk_id_categoria" type="number" required>
+  Foreign key referencing the material's category (`id_categoria`).
+</ParamField>
+
+<ParamField body="fk_id_medida" type="number" required>
+  Foreign key referencing the unit of measure (`id_medida`).
+</ParamField>
+
+<ParamField body="ubicacion" type="string">
+  Optional physical storage location. Maximum 30 characters.
+</ParamField>
+
+**Response:** The created `Material` object, including its generated `id_material`.
+
+---
+
+### `PUT /materiales/:id`
+
+Updates an existing material. Accepts the same body fields as `POST /materiales`.
+
+**Response:** The updated `Material` object.
+
+---
+
+### `DELETE /materiales/:id`
+
+Deletes a material by its primary key.
+
+**Response:** `204 No Content`
+
+---
+
+## Control Perceptivo (Entries / Receipts)
+
+Control perceptivo records represent goods-received notes — the formal record of materials arriving from a supplier.
+
+### `GET /controles-perceptivos`
+
+Returns the list of all control perceptivo headers.
+
+**Response:** `ControlPerceptivo[]`
+
+---
+
+### `GET /controles-perceptivos/:id`
+
+Returns a single control perceptivo with its full `detalles` (line items) array.
+
+**Response:** `ControlPerceptivo` — includes:
+- `id_control`, `numero_control`, `numero_nota_entrega`, `fecha_control`
+- `fk_id_proveedor`, `proveedor_nombre`
+- `numero_requerimiento`, `numero_orden_compra`, `observacion`, `foto`
+- `detalles[]` — each item: `id_detalle_control`, `fk_id_material`, `material_descripcion`, `cantidad`
+
+---
+
+### `POST /controles-perceptivos`
+
+Creates a new goods-received note, including its line items in a single request.
+
+<ParamField body="numero_nota_entrega" type="string">
+  The delivery note number from the supplier. Optional.
+</ParamField>
+
+<ParamField body="fecha_control" type="string" required>
+  ISO 8601 date string for the receipt date (e.g. `"2024-11-15"`).
+</ParamField>
+
+<ParamField body="fk_id_proveedor" type="number" required>
+  Foreign key referencing the supplier (`id_proveedor`).
+</ParamField>
+
+<ParamField body="numero_requerimiento" type="string">
+  Internal requisition number. Optional.
+</ParamField>
+
+<ParamField body="numero_orden_compra" type="string">
+  Purchase order number. Optional.
+</ParamField>
+
+<ParamField body="observacion" type="string">
+  Free-text observations or notes. Optional.
+</ParamField>
+
+<ParamField body="detalles" type="array" required>
+  Array of line items. Each object must include `fk_id_material` (number) and `cantidad` (number).
+</ParamField>
+
+**Response:** The created `ControlPerceptivo` object.
+
+---
+
+## Dispatches (Salidas)
+
+Dispatch records track outbound material movements — materials leaving the warehouse.
+
+### `GET /salidas`
+
+Returns the list of all dispatch records.
+
+**Response:** `Salida[]` — each item includes `id_salida`, `numero_salida`, `fecha_salida`, `existencia_validada`, `motivo_solicitud`, `fk_id_empleado_recibe`, `fk_id_gerente_finanzas`, `fk_id_presidente`, `observacion`.
+
+---
+
+### `POST /salidas`
+
+Creates a new dispatch record.
+
+<ParamField body="fecha_salida" type="string" required>
+  ISO 8601 date of the dispatch.
+</ParamField>
+
+<ParamField body="motivo_solicitud" type="string">
+  Reason or justification for the dispatch. Optional.
+</ParamField>
+
+<ParamField body="fk_id_empleado_recibe" type="number" required>
+  Foreign key of the employee receiving the materials (`id_empleado`).
+</ParamField>
+
+<ParamField body="fk_id_gerente_finanzas" type="number">
+  Foreign key of the finance manager approving the dispatch. Optional.
+</ParamField>
+
+<ParamField body="fk_id_presidente" type="number">
+  Foreign key of the president/director approving the dispatch. Optional.
+</ParamField>
+
+<ParamField body="observacion" type="string">
+  Free-text observations. Optional.
+</ParamField>
+
+<ParamField body="detalles" type="array" required>
+  Array of line items. Each object must include `fk_id_material` (number) and `cantidad` (number).
+</ParamField>
+
+**Response:** The created `Salida` object.
+
+---
+
+### `GET /salidas/:id/pdf`
+
+Generates and streams an official dispatch note (acta de salida) as a PDF binary.
+
+<Note>
+  You must set `responseType: 'blob'` on this request. The frontend uses `window.URL.createObjectURL` to trigger a file download named `acta-salida-{id}.pdf`. When calling this endpoint outside the browser (e.g. from a backend service), save the binary response body directly to a file.
+</Note>
+
+```bash
+curl http://localhost:4000/salidas/42/pdf \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..." \
+  --output acta-salida-42.pdf
+```
+
+**Response:** Binary PDF blob (`Content-Type: application/pdf`).
+
+---
+
+## Stock (Existencias)
+
+Existencias track current stock levels for every material, plus the configured minimum and maximum thresholds.
+
+### `GET /existencias`
+
+Returns the complete stock list.
+
+**Response:** `Existencia[]` — each item includes `id_existencia`, `fk_id_material`, `material_descripcion`, `cantidad_actual`, `stock_minimo`, `stock_maximo`.
+
+---
+
+### `PUT /existencias/:id`
+
+Updates the minimum and maximum stock thresholds for a stock record. Current stock (`cantidad_actual`) is managed automatically by the backend when entries and dispatches are recorded.
+
+<ParamField body="stock_minimo" type="number" required>
+  The minimum acceptable stock level. Triggers the low-stock alert when `cantidad_actual` falls to or below this value.
+</ParamField>
+
+<ParamField body="stock_maximo" type="number" required>
+  The maximum stock level target.
+</ParamField>
+
+**Response:** The updated `Existencia` object.
+
+---
+
+## Catalogs
+
+The following resources follow a standard CRUD pattern. All support `GET /<resource>` (list), `POST /<resource>` (create), `PUT /<resource>/:id` (update), and `DELETE /<resource>/:id` (delete), unless noted otherwise.
+
+### Categories — `/categorias`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/categorias` | List all categories → `Categoria[]` |
+| `GET` | `/categorias/:id` | Get single category → `Categoria` |
+| `POST` | `/categorias` | Create category — body: `{ nombre: string }` |
+| `PUT` | `/categorias/:id` | Update category — body: `{ nombre: string }` |
+| `DELETE` | `/categorias/:id` | Delete category → `204` |
+
+<ParamField body="nombre" type="string" required>
+  Category name. Maximum 50 characters.
+</ParamField>
+
+---
+
+### Units of Measure — `/unidades-medidas`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/unidades-medidas` | List all units → `UnidadMedida[]` |
+| `GET` | `/unidades-medidas/:id` | Get single unit → `UnidadMedida` |
+| `POST` | `/unidades-medidas` | Create unit — body: `{ nombre: string }` |
+| `PUT` | `/unidades-medidas/:id` | Update unit — body: `{ nombre: string }` |
+| `DELETE` | `/unidades-medidas/:id` | Delete unit → `204` |
+
+<ParamField body="nombre" type="string" required>
+  Unit name (e.g. `"Kilogramo"`, `"Metro"`, `"Unidad"`). Maximum 50 characters.
+</ParamField>
+
+---
+
+### Destinations — `/destinos`
+
+Destinations represent internal departments or cost centres that receive dispatched materials.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/destinos` | List all destinations → `Destino[]` |
+| `GET` | `/destinos/:id` | Get single destination → `Destino` |
+| `POST` | `/destinos` | Create destination — body: `{ nombre: string }` |
+| `PUT` | `/destinos/:id` | Update destination — body: `{ nombre: string }` |
+| `DELETE` | `/destinos/:id` | Delete destination → `204` |
+
+<ParamField body="nombre" type="string" required>
+  Destination name. Maximum 50 characters.
+</ParamField>
+
+---
+
+### Suppliers — `/proveedores`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/proveedores` | List all suppliers → `Proveedor[]` |
+| `GET` | `/proveedores/:id` | Get single supplier → `Proveedor` |
+| `POST` | `/proveedores` | Create supplier |
+| `PUT` | `/proveedores/:id` | Update supplier |
+
+<Note>
+  The suppliers API module does not include a `DELETE` endpoint.
+</Note>
+
+<ParamField body="nombre" type="string" required>
+  Supplier company name. Maximum 100 characters.
+</ParamField>
+
+<ParamField body="rif_o_cedula" type="string" required>
+  Tax ID (RIF) or national ID number of the supplier. Maximum 30 characters.
+</ParamField>
+
+<ParamField body="telefono" type="string" required>
+  Contact telephone number. Maximum 30 characters.
+</ParamField>
+
+---
+
+### Employees — `/empleados`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/empleados` | List all employees → `Empleado[]` |
+| `GET` | `/empleados/:id` | Get single employee → `Empleado` |
+| `POST` | `/empleados` | Create employee |
+| `PUT` | `/empleados/:id` | Update employee |
+| `DELETE` | `/empleados/:id` | Delete employee → `204` |
+
+<ParamField body="nombre_completo" type="string" required>
+  Employee's full name. Maximum 200 characters.
+</ParamField>
+
+<ParamField body="fk_id_destino" type="number" required>
+  Foreign key referencing the employee's assigned destination/department (`id_destino`).
+</ParamField>
+
+<ParamField body="cedula" type="string">
+  National ID number. Optional. Maximum 30 characters.
+</ParamField>
+
+<ParamField body="telefono" type="string">
+  Contact telephone number. Optional. Maximum 30 characters.
+</ParamField>
+
+<ParamField body="activo" type="boolean">
+  Whether the employee is currently active. Included in `PUT` requests; defaults to `true` on creation.
+</ParamField>
+
+---
+
+## Users
+
+System user accounts that can log into Corpointa. The actual backend routes use `/users` (not `/usuarios`).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/users` | List all users → `Usuario[]` |
+| `GET` | `/users/:id` | Get single user → `Usuario` |
+| `POST` | `/users` | Create user |
+| `PUT` | `/users/:id` | Update user |
+| `DELETE` | `/users/:id` | Delete user → `204` |
+
+<ParamField body="cedula" type="string" required>
+  National ID — used as the login identifier. Maximum 30 characters.
+</ParamField>
+
+<ParamField body="nombre1" type="string" required>
+  First given name. Maximum 50 characters.
+</ParamField>
+
+<ParamField body="apellido1" type="string" required>
+  First family name. Maximum 50 characters.
+</ParamField>
+
+<ParamField body="nombre2" type="string">
+  Second given name. Optional.
+</ParamField>
+
+<ParamField body="apellido2" type="string">
+  Second family name. Optional.
+</ParamField>
+
+<ParamField body="clave" type="string">
+  Password. Minimum 6 characters. Required on `POST`; optional on `PUT` (omit to leave unchanged).
+</ParamField>
+
+<ParamField body="activo" type="boolean">
+  Whether the user account is enabled. Defaults to `true`.
+</ParamField>
+
+---
+
+## Audit Log
+
+The audit log (`bitacoras`) is an append-only record of all state-changing actions performed in the system. It is read-only from the frontend — records are created server-side automatically.
+
+### `GET /bitacoras`
+
+Returns all audit log entries.
+
+**Response:** `Bitacora[]`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id_bitacora` | `number` | Primary key. |
+| `fk_id_usuario` | `number \| null` | ID of the user who performed the action. |
+| `nombre1` | `string \| null` | First name of the acting user (denormalised). |
+| `apellido1` | `string \| null` | First surname of the acting user (denormalised). |
+| `cedula` | `string \| null` | National ID of the acting user (denormalised). |
+| `fecha_hora` | `string` | ISO 8601 timestamp of the action. |
+| `accion` | `string` | Action type, e.g. `"CREATE"`, `"UPDATE"`, `"DELETE"`. |
+| `tabla_afectada` | `string` | Name of the database table that was modified. |
+| `id_registro_afectado` | `string \| number \| null` | Primary key of the affected record. |
+| `descripcion` | `string \| null` | Human-readable description of the change. |
+
+<Tip>
+  Use the `tabla_afectada` field to filter log entries by resource type when displaying activity history for a specific entity (e.g. all changes made to `materiales`).
+</Tip>

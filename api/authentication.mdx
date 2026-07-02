@@ -1,0 +1,146 @@
+---
+title: "Authenticate with the Corpointa API Using JWT"
+sidebarTitle: "Authentication"
+description: "Obtain a JWT by posting credentials to POST /auth/login. Include the token in the Authorization: Bearer header on all subsequent requests."
+---
+
+Corpointa uses JSON Web Tokens (JWT) for stateless authentication. The flow is straightforward: post a user's national ID (`cedula`) and password to `POST /auth/login`, receive a signed JWT in return, and include that token in the `Authorization: Bearer` header on every subsequent request. The frontend stores the token in a browser cookie and attaches it automatically via the Axios request interceptor — so you only need to handle the token explicitly when integrating from outside the browser client (e.g. a backend service, a CLI, or a testing tool).
+
+## Sign In
+
+Send the user's credentials to obtain a token.
+
+**`POST /auth/login`**
+
+### TypeScript interfaces
+
+The following interfaces are defined in `src/features/auth/api/auth-api.ts` and describe the exact shapes of the request body and the success response:
+
+```typescript
+export interface LoginCredentials {
+  cedula: string
+  contraseña: string
+}
+
+export interface LoginResponse {
+  token: string
+  user: {
+    id_usuario: number
+    cedula: string
+    nombre1: string
+    apellido1: string
+    correo: string
+    rol: string
+  }
+}
+```
+
+### Request parameters
+
+<ParamField body="cedula" type="string" required>
+  The user's national identification number, e.g. `"V-12345678"`.
+</ParamField>
+
+<ParamField body="contraseña" type="string" required>
+  The user's plaintext password. Transmitted over HTTPS; hashed and compared server-side.
+</ParamField>
+
+### Response fields
+
+<ResponseField name="token" type="string">
+  A signed JWT. Include this value as `Authorization: Bearer <token>` on all subsequent requests.
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  The authenticated user's profile.
+
+  <Expandable title="user fields">
+    <ResponseField name="user.id_usuario" type="number">
+      Internal primary key for the user record.
+    </ResponseField>
+    <ResponseField name="user.cedula" type="string">
+      The user's national ID, matching the value supplied in the request.
+    </ResponseField>
+    <ResponseField name="user.nombre1" type="string">
+      The user's first given name.
+    </ResponseField>
+    <ResponseField name="user.apellido1" type="string">
+      The user's first family name.
+    </ResponseField>
+    <ResponseField name="user.correo" type="string">
+      The user's email address.
+    </ResponseField>
+    <ResponseField name="user.rol" type="string">
+      The user's assigned role, which controls permissions within the application.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### curl example
+
+```bash
+curl -X POST http://localhost:4000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"cedula": "V-12345678", "contraseña": "mypassword"}'
+```
+
+### Example response
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c3VhcmlvIjoxLCJjZWR1bGEiOiJWLTEyMzQ1Njc4Iiwicm9sIjoiYWRtaW4iLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MTcwMDAwMzYwMH0.signature",
+  "user": {
+    "id_usuario": 1,
+    "cedula": "V-12345678",
+    "nombre1": "María",
+    "apellido1": "González",
+    "correo": "maria.gonzalez@example.com",
+    "rol": "admin"
+  }
+}
+```
+
+## Using the Token
+
+Once you have the token, pass it in the `Authorization` header on every request that requires authentication. All endpoints except `POST /auth/login` and `POST /auth/refresh-token` require a valid token.
+
+```bash
+curl http://localhost:4000/materiales \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
+```
+
+A request made without a token — or with an expired or malformed token — will receive a `401 Unauthorized` response.
+
+## Refresh Token
+
+When the current JWT is close to expiry, request a new one without requiring the user to re-enter their credentials.
+
+**`POST /auth/refresh-token`**
+
+No request body is required. The backend identifies the session from the current token, which the Axios interceptor attaches automatically from the cookie when called from within the browser client.
+
+```bash
+curl -X POST http://localhost:4000/auth/refresh-token \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
+```
+
+**Response:**
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c3VhcmlvIjoxLCJyb2wiOiJhZG1pbiIsImlhdCI6MTcwMDAwMzYwMCwiZXhwIjoxNzAwMDA3MjAwfQ.newsignature"
+}
+```
+
+## Token Storage in the Frontend
+
+The frontend manages the token lifecycle through a Zustand store (`useAuthStore`, defined in `src/stores/auth-store.ts`). The key behaviour:
+
+- **On login**: `auth.setAccessToken(token)` is called with the token string. Internally, this serialises the token with `JSON.stringify` and writes it to a browser cookie named `thisisjustarandomstring` via the `setCookie` helper.
+- **On page load**: The store initialises by reading and JSON-parsing the cookie, so the user remains authenticated across full-page refreshes without a new login.
+- **On every API request**: The Axios interceptor in `api-client.ts` reads that same cookie, URI-decodes it, JSON-parses it, and injects the token as the `Authorization: Bearer` header automatically — no manual header management is needed in individual API calls.
+- **On logout**: `auth.reset()` removes both the token cookie (`thisisjustarandomstring`) and the user data cookie (`user_data`), clearing the session completely.
+
+<Warning>
+  Never store JWT tokens in `localStorage`. Unlike cookies, `localStorage` is directly accessible to any JavaScript running on the page, making tokens stored there vulnerable to cross-site scripting (XSS) attacks. Corpointa intentionally uses cookie storage because cookies can be scoped and, in production, should be configured with the `HttpOnly` and `Secure` flags to prevent JavaScript access entirely.
+</Warning>

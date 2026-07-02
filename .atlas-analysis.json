@@ -1,0 +1,143 @@
+{
+  "projectType": "saas",
+  "projectName": "Corpointa",
+  "projectDescription": "A full-stack inventory management web application for tracking materials, stock movements, suppliers, employees, and warehouse operations — built with React, TanStack Router, and a JWT-authenticated REST API.",
+  "theme": "luma",
+  "primaryColor": "#2d9202",
+  "lightColor": "#e8f5e0",
+  "darkColor": "#1a5a01",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Overview",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "configuration"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/authentication",
+              "concepts/routing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Features",
+        "groups": [
+          {
+            "group": "Dashboard",
+            "pages": [
+              "features/dashboard"
+            ]
+          },
+          {
+            "group": "Inventory",
+            "pages": [
+              "features/materials",
+              "features/stock",
+              "features/categories",
+              "features/units-of-measure"
+            ]
+          },
+          {
+            "group": "Movements",
+            "pages": [
+              "features/entries",
+              "features/dispatches"
+            ]
+          },
+          {
+            "group": "Contacts",
+            "pages": [
+              "features/suppliers",
+              "features/employees",
+              "features/destinations"
+            ]
+          },
+          {
+            "group": "Administration",
+            "pages": [
+              "features/users",
+              "features/audit-log",
+              "features/settings"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Developer Guide",
+        "groups": [
+          {
+            "group": "API Integration",
+            "pages": [
+              "api/overview",
+              "api/authentication",
+              "api/endpoints"
+            ]
+          },
+          {
+            "group": "Customization",
+            "pages": [
+              "customization/theming",
+              "customization/fonts"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/environment",
+              "deployment/netlify"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Real-time inventory dashboard with KPI cards and monthly movement charts",
+    "Control Perceptivo (warehouse receipts) with multi-line material entries",
+    "Despachos (dispatches/exits) with PDF generation and validation workflow",
+    "Stock management with configurable min/max thresholds and low-stock alerts",
+    "Full CRUD for materials, categories, units of measure, suppliers, employees, and destinations",
+    "JWT-based authentication stored in cookies with automatic token attachment on requests",
+    "Clerk integration as an alternative authentication provider",
+    "Audit log (Bitácora) for tracking all system actions per user",
+    "User management with role-based access control",
+    "RTL support, dark mode, configurable fonts, and responsive layout",
+    "TanStack Router with file-based routing and automatic code-splitting",
+    "TanStack Query for server state management"
+  ],
+  "publicApiSurface": [
+    "POST /auth/login — authenticate with cédula and contraseña, returns JWT",
+    "POST /auth/refresh-token — refresh access token",
+    "GET /dashboard/stats — KPI stats, monthly movements, recent dispatches, stock by category",
+    "GET /materiales — list all materials (with category and unit JOIN)",
+    "GET /materiales/:id — get single material",
+    "POST /materiales — create material",
+    "PUT /materiales/:id — update material",
+    "DELETE /materiales/:id — delete material",
+    "GET /controles-perceptivos — list all warehouse receipts",
+    "GET /controles-perceptivos/:id — get receipt with line details",
+    "POST /controles-perceptivos — create warehouse receipt",
+    "GET /salidas — list all dispatches",
+    "GET /salidas/:id/pdf — download dispatch PDF",
+    "POST /salidas — create dispatch",
+    "GET /existencias — list stock levels",
+    "PUT /existencias/:id — update min/max stock thresholds",
+    "GET /categorias, POST, PUT, DELETE /categorias/:id",
+    "GET /unidades-medida, POST, PUT, DELETE /unidades-medida/:id",
+    "GET /destinos, POST, PUT, DELETE /destinos/:id",
+    "GET /proveedores, POST, PUT, DELETE /proveedores/:id",
+    "GET /empleados, POST, PUT, DELETE /empleados/:id",
+    "GET /usuarios, POST, PUT, DELETE /usuarios/:id",
+    "GET /bitacoras — audit log entries"
+  ]
+}

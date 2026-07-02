@@ -1,0 +1,103 @@
+---
+title: "Configure Custom Fonts in Corpointa"
+sidebarTitle: "Fonts"
+description: "Corpointa's font configuration is managed in src/config/fonts.ts. Users can change their preferred font family in Settings > Appearance, and the choice persists via cookie."
+---
+
+Corpointa manages available font families through a central config file at `src/config/fonts.ts`. The font a user selects in **Settings → Appearance** is applied instantly by toggling a CSS class on the `<html>` element, and the choice is stored in the `font` cookie so it is restored on every page load. Adding a new font to the application is a three-step process requiring changes to one config file, one HTML file, and one CSS file — no rebuild of Tailwind config is needed.
+
+## Font Configuration
+
+The source of truth for all available fonts is `src/config/fonts.ts`:
+
+```typescript src/config/fonts.ts
+/**
+ * List of available font names (visit the url `/settings/appearance`).
+ * This array is used to generate dynamic font classes (e.g., `font-inter`, `font-manrope`).
+ *
+ * 📝 How to Add a New Font (Tailwind v4+):
+ * 1. Add the font name here.
+ * 2. Update the `<link>` tag in 'index.html' to include the new font from Google Fonts (or any other source).
+ * 3. Add the new font family to 'index.css' using the `@theme inline` and `font-family` CSS variable.
+ *
+ * Example:
+ * fonts.ts           → Add 'roboto' to this array.
+ * index.html         → Add Google Fonts link for Roboto.
+ * index.css          → Add the new font in the CSS, e.g.:
+ *   @theme inline {
+ *      // ... other font families
+ *      --font-roboto: 'Roboto', var(--font-sans);
+ *   }
+ */
+export const fonts = ['public-sans', 'inter', 'manrope', 'system'] as const
+```
+
+The `fonts` array is a `const` tuple, which means TypeScript derives a union type from it. The `AppearanceForm` and `FontProvider` both import this array directly, so adding a new entry here is the only change needed to the config layer.
+
+## Default Font
+
+The default font is **Public Sans** — the first entry in the `fonts` array. When no `font` cookie is present (e.g., a first-time visitor), `FontProvider` falls back to `fonts[0]`, which applies the `font-public-sans` CSS class. The font family itself is declared in `theme.css`:
+
+```css src/styles/theme.css
+@theme inline {
+  --font-public-sans: 'Public Sans', 'sans-serif';
+}
+```
+
+The `body` element in `index.css` also carries `font-public-sans` as its base class to ensure a consistent fallback even before the provider mounts.
+
+## How Font Switching Works
+
+When a user changes their font in **Settings → Appearance** and clicks **Update preferences**, the following happens:
+
+1. `setFont()` from `FontProvider` is called with the selected font name
+2. The new value is written to the `font` cookie (1-year expiry)
+3. A `useEffect` in `FontProvider` strips all existing `font-*` classes from `document.documentElement` and adds the new one (e.g., `font-manrope`)
+4. Because the Tailwind font utility is scoped to `html`, all text in the application immediately re-renders in the new typeface
+
+On subsequent page loads, `FontProvider` reads the `font` cookie during its `useState` initializer and starts with the saved font — the class is applied before the component tree renders, preventing any flash of the default font.
+
+## Adding a New Font
+
+<Steps>
+  <Step title="Add the font name to the config array">
+    Open `src/config/fonts.ts` and append your font's slug to the `fonts` array. Use lowercase and hyphens (matching the Tailwind class convention):
+
+    ```typescript src/config/fonts.ts
+    export const fonts = ['public-sans', 'inter', 'manrope', 'system', 'roboto'] as const
+    ```
+  </Step>
+
+  <Step title="Load the font file">
+    Add a `<link>` preconnect and stylesheet tag to `index.html` for Google Fonts, or import a local font file:
+
+    ```html index.html
+    <!-- Google Fonts example -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    ```
+  </Step>
+
+  <Step title="Register the font family in CSS">
+    Open `src/styles/theme.css` and add a new `--font-*` entry inside the `@theme inline` block. The variable name must match the slug you added to `fonts.ts`:
+
+    ```css src/styles/theme.css
+    @theme inline {
+      --font-public-sans: 'Public Sans', 'sans-serif';
+      --font-roboto: 'Roboto', var(--font-sans); /* ← new entry */
+    }
+    ```
+
+    Tailwind v4 will automatically generate the `font-roboto` utility class from this variable.
+  </Step>
+</Steps>
+
+After completing these three steps, **Roboto** (or your chosen font) will appear as a selectable option in **Settings → Appearance** — no further code changes are required.
+
+<Tip>
+  Add `'system'` to your font list (as Corpointa does by default) to give users a zero-latency option. The `system` font stack resolves to the OS's native UI font — San Francisco on macOS/iOS, Segoe UI on Windows, and Roboto on Android — which is always available and never causes a FOUT (Flash of Unstyled Text).
+</Tip>

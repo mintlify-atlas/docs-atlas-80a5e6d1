@@ -1,0 +1,197 @@
+---
+title: "Configure Corpointa Environment and API Connection"
+sidebarTitle: "Configuration"
+description: "Set up Corpointa environment variables, configure the backend API base URL, enable Clerk authentication, and adjust font and theme settings."
+---
+
+Corpointa is configured through two complementary mechanisms: environment variables (defined in a `.env` file at the project root) and a small set of TypeScript configuration files under `src/config/` and `src/lib/`. Environment variables control runtime concerns such as which backend URL to target and which authentication provider to use, while the code-level configuration files govern font choices and the Axios API client behaviour. This separation keeps deployment-specific values out of source control and makes it straightforward to promote the same build artifact across environments by swapping the environment file.
+
+## Environment Variables
+
+Vite exposes variables prefixed with `VITE_` to the browser bundle via `import.meta.env`. All Corpointa environment variables follow this convention.
+
+| Name | Required | Default | Description |
+|---|---|---|---|
+| `VITE_API_URL` | Optional | `http://localhost:4000` | Base URL of the Corpointa REST API backend. All Axios requests are relative to this value. |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Optional¹ | *(none)* | Clerk publishable key for the alternative Clerk-based authentication flow. Only required when using Clerk auth routes. |
+
+> ¹ `VITE_CLERK_PUBLISHABLE_KEY` becomes **required** if your application routes users through the Clerk sign-in pages at `src/routes/clerk/`.
+
+To configure these values, copy the example file and edit it:
+
+```bash
+cp .env.example .env
+```
+
+```bash
+# .env
+VITE_API_URL=https://api.corpointa.example.com
+VITE_CLERK_PUBLISHABLE_KEY=pk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+<Warning>
+  Never commit your `.env` file to source control. The `.env.example` file (which contains only variable names, no values) is safe to commit and serves as documentation of the required configuration surface.
+</Warning>
+
+## API Client
+
+All HTTP communication with the backend is handled through a single Axios instance defined in `src/lib/api-client.ts`. The instance is pre-configured with the backend base URL and a JSON content-type header, and it includes a request interceptor that automatically attaches the authenticated user's JWT to every outgoing request.
+
+```typescript
+// src/lib/api-client.ts
+import axios from 'axios'
+
+const apiClient = axios.create({
+  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:4000',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+// Interceptor: adjunta el JWT en cada request
+apiClient.interceptors.request.use((config) => {
+  // Leer el token del cookie que maneja el auth store
+  const cookieName = 'thisisjustarandomstring'
+  const cookieValue = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith(`${cookieName}=`))
+    ?.split('=')[1]
+
+  if (cookieValue) {
+    try {
+      const token = JSON.parse(decodeURIComponent(cookieValue))
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
+    } catch {
+      // cookie inválida, ignorar
+    }
+  }
+
+  return config
+})
+
+export default apiClient
+```
+
+**How the interceptor works:**
+
+1. On every request, Axios calls the interceptor before sending.
+2. The interceptor reads `document.cookie` and looks for a cookie named `thisisjustarandomstring` — the cookie managed by the built-in auth store.
+3. The cookie value is URL-decoded and JSON-parsed to extract the raw JWT string.
+4. If a valid token is found, it is attached as a `Bearer` token in the `Authorization` header.
+5. If the cookie is absent or malformed, the request proceeds without an `Authorization` header (useful for unauthenticated endpoints such as `/auth/login`).
+
+All feature modules that need to communicate with the backend import `apiClient` from this file, so any change to base URL or interceptor logic applies universally.
+
+## Authentication Mode
+
+Corpointa supports two mutually exclusive authentication modes. Choose one based on your deployment requirements.
+
+<Tabs>
+  <Tab title="Built-in JWT (Default)">
+    The default authentication flow uses the Corpointa backend's own `/auth/login` endpoint. No additional third-party accounts or configuration are needed beyond a running backend.
+
+    **How it works:**
+
+    Users submit their cédula (national ID) and password through the login form. The frontend calls the backend via `src/features/auth/api/auth-api.ts`:
+
+    ```typescript
+    // src/features/auth/api/auth-api.ts
+    import apiClient from '@/lib/api-client'
+
+    export interface LoginCredentials {
+      cedula: string
+      contraseña: string
+    }
+
+    export interface LoginResponse {
+      token: string
+      user: {
+        id_usuario: number
+        cedula: string
+        nombre1: string
+        apellido1: string
+        correo: string
+        rol: string
+      }
+    }
+
+    export async function loginUser(credentials: LoginCredentials): Promise<LoginResponse> {
+      const response = await apiClient.post<LoginResponse>('/auth/login', credentials)
+      return response.data
+    }
+
+    export async function refreshToken(): Promise<{ token: string }> {
+      const response = await apiClient.post<{ token: string }>('/auth/refresh-token')
+      return response.data
+    }
+    ```
+
+    On a successful login response, the auth store writes the returned JWT into the `thisisjustarandomstring` browser cookie. From that point, the Axios interceptor picks it up automatically on every subsequent request.
+
+    **Configuration required:** None beyond `VITE_API_URL`.
+  </Tab>
+
+  <Tab title="Clerk (Optional)">
+    For deployments that prefer managed authentication, Corpointa includes a parallel set of routes under `src/routes/clerk/` that use the [Clerk React SDK](https://clerk.com/docs/quickstarts/react).
+
+    **How it works:**
+
+    Routes under the `clerk/` path wrap their content in Clerk's `<ClerkProvider>`. Clerk handles the full sign-in/sign-up/session lifecycle, including MFA, social logins, and session management, without any custom backend auth logic.
+
+    **Configuration required:**
+
+    Add your Clerk publishable key to `.env`:
+
+    ```bash
+    VITE_CLERK_PUBLISHABLE_KEY=pk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    ```
+
+    You can obtain this key from the [Clerk Dashboard](https://dashboard.clerk.com/) under **API Keys**.
+
+    <Note>
+      The built-in JWT routes and the Clerk routes coexist in the codebase but are navigated to independently. Direct users to `/clerk/sign-in` to use the Clerk flow, or to the default `/sign-in` route for built-in JWT auth. Do not set `VITE_CLERK_PUBLISHABLE_KEY` unless you intend to use Clerk — the SDK requires the key to initialise.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Font Configuration
+
+Corpointa supports switchable font families, selectable at runtime from the **Settings → Appearance** page. The available fonts are declared in `src/config/fonts.ts`:
+
+```typescript
+// src/config/fonts.ts
+export const fonts = ['public-sans', 'inter', 'manrope', 'system'] as const
+```
+
+To add a new font:
+
+1. Add the font name string to the `fonts` array in `src/config/fonts.ts`.
+2. Add the corresponding `<link>` tag in `index.html` to load the font from Google Fonts or another source.
+3. Register the font family in `index.css` using a TailwindCSS v4 `@theme inline` block:
+
+```css
+/* index.css */
+@theme inline {
+  --font-roboto: 'Roboto', var(--font-sans);
+}
+```
+
+The font name in the array maps directly to the Tailwind utility class (e.g., `'roboto'` → `font-roboto`), which Corpointa's appearance settings apply dynamically to the root element.
+
+## Scripts Reference
+
+All project scripts are defined in `package.json` and run via `pnpm`:
+
+| Script | Command | Description |
+|---|---|---|
+| `dev` | `vite` | Start the Vite development server with HMR at `http://localhost:5173`. |
+| `build` | `tsc -b && vite build` | Type-check the project then compile an optimised production bundle into `dist/`. |
+| `preview` | `vite preview` | Serve the production build locally at `http://localhost:4173` for pre-deploy validation. |
+| `lint` | `eslint .` | Run ESLint across all project files using the configured rule set. |
+| `format` | `prettier --write .` | Auto-format all files in place using Prettier. |
+| `test` | `vitest run --browser.headless` | Execute the full test suite once in headless Chromium via Playwright. |
+| `test:watch` | `vitest --browser.headless` | Run tests in watch mode — re-runs affected tests on file save. |
+| `test:coverage` | `vitest run --coverage --browser.headless` | Run the test suite and generate a V8 code-coverage report. |
+| `knip` | `knip` | Analyse the project for unused files, exports, and dependencies. |

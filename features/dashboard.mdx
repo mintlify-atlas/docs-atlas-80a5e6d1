@@ -1,0 +1,183 @@
+---
+title: "Dashboard: Real-Time Inventory KPIs and Movement Charts"
+sidebarTitle: "Dashboard"
+description: "The Corpointa Dashboard shows live KPI cards for materials, stock, movements, and low-stock alerts, plus monthly entry/exit charts and recent dispatch history."
+---
+
+The Dashboard is the home screen of Corpointa, available at the `/` route. It loads live data from the API on every visit and gives warehouse staff an instant pulse of the entire inventory — how many materials are registered, how much stock is on hand, which items have fallen below their minimum threshold, and how many movements have occurred this month. Two tabs let users switch between a high-level **Descripción General** view and a deeper **Analíticas** breakdown.
+
+---
+
+## KPI Cards
+
+Four summary cards are displayed in a responsive grid at the top of the Overview tab. Each card calls `getDashboardStats()` on mount and shows a loading placeholder (`...`) while the request is in flight.
+
+<CardGroup cols={2}>
+  <Card title="Materiales" icon="box">
+    Displays `totalMateriales` — the total count of distinct material records registered in the system catalog.
+  </Card>
+  <Card title="Unidades en Stock" icon="warehouse">
+    Displays `totalExistencias` — the sum of `cantidad_actual` across all stock records, representing total units currently held in inventory.
+  </Card>
+  <Card title="Stock Bajo" icon="triangle-exclamation" color="#ef4444">
+    Displays `stockBajo` — the count of materials whose `cantidad_actual` is below their configured `stock_minimo`. Rendered in **destructive red** with an `AlertTriangle` icon to draw immediate attention.
+  </Card>
+  <Card title="Movimientos del Mes" icon="arrow-down-to-line">
+    Displays `entradasMes + salidasMes` as the headline figure. The subtitle line breaks this down as **N entradas / N salidas** for the current calendar month.
+  </Card>
+</CardGroup>
+
+---
+
+## Overview Tab
+
+The **Descripción General** tab (default) shows two panels side by side below the KPI cards.
+
+### Movimientos Mensuales — Pie Chart
+
+The left panel renders a donut `PieChart` (via Recharts) that visualises the **total** entries versus exits across all months returned by the API. The chart aggregates `movimientosMensuales` into two segments:
+
+| Segment | Color | Source field |
+|---|---|---|
+| Entradas | `#2d9202` (green) | Sum of `entradas` across all months |
+| Salidas | `#FC0800` (red) | Sum of `salidas` across all months |
+
+The chart includes an interactive tooltip and a legend. It is rendered at 350 px height inside a `ResponsiveContainer`.
+
+### Últimas Salidas — Recent Dispatches
+
+The right panel lists the most recent dispatch records returned in `ultimasSalidas`. Each row shows:
+
+| Field | Display |
+|---|---|
+| `numero_salida` | Dispatch reference number (bold heading) |
+| `recibe_nombre` | Recipient name, or `Sin asignar` if empty |
+| `fecha` | Formatted as `dd/MM/yyyy` using `date-fns` |
+| `total_materiales` | Count of material lines, shown as **N mat.** |
+
+If the list is empty, a `FileText` icon and the message *"No hay salidas registradas"* are shown instead.
+
+---
+
+## Analytics Tab
+
+Selecting the **Analíticas** tab renders the `<Analytics>` component, which receives the full `DashboardStats` object and the `loading` boolean. It provides a more granular breakdown of the same data across two panels.
+
+**Summary Cards (top grid)**
+
+| Card | Icon | Value |
+|---|---|---|
+| Total Materiales | Package | `totalMateriales` |
+| Entradas del Mes | ArrowDownToLine | `entradasMes` |
+| Salidas del Mes | ArrowUpFromLine | `salidasMes` |
+| Stock Bajo | Package | `stockBajo` |
+
+**Stock por Categoría (left panel)**
+
+A horizontal bar list (`SimpleBarList`) renders one bar per entry in `stockPorCategoria`. Each bar width is proportional to the category's share of the maximum category stock value. Values are formatted as `N uds.`. Skeleton loaders are shown while data is fetching.
+
+**Resumen de Existencias (right panel)**
+
+A compact key-value list displaying all five core metrics at a glance:
+
+| Label | Value style |
+|---|---|
+| Total materiales | Default |
+| Unidades en stock | Default |
+| Stock bajo mínimo | `text-destructive` (red) |
+| Entradas del mes | `text-green-600` |
+| Salidas del mes | `text-red-600` |
+
+---
+
+## API: Dashboard Stats
+
+All dashboard data is fetched in a single call to `getDashboardStats()`.
+
+```typescript
+import { getDashboardStats, type DashboardStats } from '@/features/dashboard/api/dashboard'
+
+const stats: DashboardStats = await getDashboardStats()
+```
+
+### Endpoint
+
+```bash
+GET /dashboard/stats
+```
+
+### `DashboardStats` Interface
+
+```typescript
+interface DashboardStats {
+  /** Total number of distinct material records */
+  totalMateriales: number
+
+  /** Sum of cantidad_actual across all stock records */
+  totalExistencias: number
+
+  /** Count of materials where cantidad_actual < stock_minimo */
+  stockBajo: number
+
+  /** Number of entry movements recorded this calendar month */
+  entradasMes: number
+
+  /** Number of exit movements recorded this calendar month */
+  salidasMes: number
+
+  /** Monthly breakdown for the bar/pie charts */
+  movimientosMensuales: {
+    mes: string       // e.g. "Enero"
+    mes_num: string   // e.g. "01"
+    entradas: number
+    salidas: number
+  }[]
+
+  /** Most recent dispatch records for the Últimas Salidas panel */
+  ultimasSalidas: {
+    numero_salida: string
+    fecha: string           // ISO date string
+    recibe_nombre: string   // recipient employee name
+    total_materiales: number
+  }[]
+
+  /** Per-category stock totals for the Analytics bar list */
+  stockPorCategoria: {
+    nombre: string
+    cantidad: number
+  }[]
+}
+```
+
+### Example Response
+
+```json
+{
+  "totalMateriales": 42,
+  "totalExistencias": 1380,
+  "stockBajo": 5,
+  "entradasMes": 12,
+  "salidasMes": 9,
+  "movimientosMensuales": [
+    { "mes": "Mayo",  "mes_num": "05", "entradas": 8,  "salidas": 6 },
+    { "mes": "Junio", "mes_num": "06", "entradas": 12, "salidas": 9 }
+  ],
+  "ultimasSalidas": [
+    {
+      "numero_salida": "SAL-0042",
+      "fecha": "2025-06-28T00:00:00.000Z",
+      "recibe_nombre": "Ana Torres",
+      "total_materiales": 3
+    }
+  ],
+  "stockPorCategoria": [
+    { "nombre": "Eléctrico",   "cantidad": 540 },
+    { "nombre": "Ferretería",  "cantidad": 320 },
+    { "nombre": "Limpieza",    "cantidad": 200 }
+  ]
+}
+```
+
+<Note>
+  The dashboard fetches data once on mount. Reload the page or navigate away and back to refresh the stats. There is no auto-polling interval.
+</Note>

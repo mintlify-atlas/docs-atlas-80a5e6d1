@@ -1,0 +1,133 @@
+---
+title: "Suppliers: Manage Vendor Contacts for Warehouse Receipts"
+sidebarTitle: "Suppliers"
+description: "The Suppliers module stores vendor contact information in Corpointa. Suppliers are required when creating Control Perceptivo warehouse receipts."
+---
+
+Suppliers (*proveedores*) represent the external vendors and individuals from whom your organization receives goods. Every supplier record stores basic contact identification that is referenced when raising a Control Perceptivo warehouse receipt. You can manage all suppliers at the `/proveedores` route.
+
+## Data Model
+
+Each supplier record contains the following fields:
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id_proveedor` | integer | Primary key, auto-generated | Unique numeric identifier for the supplier |
+| `nombre` | string | Required, max 100 chars | Full legal name of the vendor or individual |
+| `rif_o_cedula` | string | Required, max 30 chars | Venezuelan business tax ID (RIF) or individual national ID (cédula) |
+| `telefono` | string | Required, max 30 chars | Primary contact phone number |
+
+<Note>
+  **RIF vs. Cédula** — A RIF (*Registro de Información Fiscal*) is Venezuela's business tax identification number, assigned to companies and self-employed professionals. A cédula is the individual national identity number. Corpointa accepts either in the `rif_o_cedula` field; the field label makes this explicit in the UI.
+</Note>
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Searchable Table" icon="magnifying-glass">
+    The suppliers list is fully searchable and column-filterable. Type in the global search bar or use per-column filters to narrow results by name or tax ID.
+  </Card>
+  <Card title="Inline Create Dialog" icon="plus">
+    Click **New Supplier** to open a modal dialog with validated form fields. All three required fields must pass validation before the record is saved.
+  </Card>
+  <Card title="Inline Edit Dialog" icon="pencil">
+    Click the edit action on any row to open the same form pre-populated with the supplier's current data. Changes are submitted with a `PUT` request.
+  </Card>
+  <Card title="Delete Confirmation" icon="trash">
+    Deleting a supplier triggers a confirmation dialog to prevent accidental removal. Suppliers referenced by existing warehouse receipts should be reviewed before deletion.
+  </Card>
+</CardGroup>
+
+## API Reference
+
+All endpoints operate on the `/proveedores` resource and return or accept JSON.
+
+### List Suppliers
+
+<ResponseField name="GET /proveedores" type="Proveedor[]">
+  Returns an array of all supplier records.
+
+  ```http
+  GET /proveedores
+  ```
+
+  **Response**
+  ```json
+  [
+    {
+      "id_proveedor": 1,
+      "nombre": "Distribuidora Central C.A.",
+      "rif_o_cedula": "J-30456789-0",
+      "telefono": "+58 212 555 0100"
+    }
+  ]
+  ```
+</ResponseField>
+
+### Get Single Supplier
+
+<ResponseField name="GET /proveedores/:id" type="Proveedor">
+  Returns a single supplier by its `id_proveedor`.
+
+  ```http
+  GET /proveedores/1
+  ```
+</ResponseField>
+
+### Create Supplier
+
+<ResponseField name="POST /proveedores" type="Proveedor">
+  Creates a new supplier record. The `id_proveedor` is assigned by the server.
+
+  ```http
+  POST /proveedores
+  Content-Type: application/json
+
+  {
+    "nombre": "Suministros del Norte S.R.L.",
+    "rif_o_cedula": "J-40123456-1",
+    "telefono": "+58 261 555 0200"
+  }
+  ```
+</ResponseField>
+
+### Update Supplier
+
+<ResponseField name="PUT /proveedores/:id" type="Proveedor">
+  Updates an existing supplier. Send the full set of writable fields.
+
+  ```http
+  PUT /proveedores/1
+  Content-Type: application/json
+
+  {
+    "nombre": "Distribuidora Central C.A.",
+    "rif_o_cedula": "J-30456789-0",
+    "telefono": "+58 212 555 0199"
+  }
+  ```
+</ResponseField>
+
+### Delete Supplier
+
+<ResponseField name="DELETE /proveedores/:id" type="void">
+  Permanently removes a supplier record.
+
+  ```http
+  DELETE /proveedores/1
+  ```
+</ResponseField>
+
+## Field Validation
+
+<ParamField body="nombre" type="string" required>
+  Full legal name of the vendor. Must be between 1 and 100 characters.
+</ParamField>
+
+<ParamField body="rif_o_cedula" type="string" required>
+  Venezuelan RIF (businesses) or cédula (individuals). Must be between 1 and 30 characters. Include the document prefix in your data, e.g. `J-30456789-0` or `V-12345678`.
+</ParamField>
+
+<ParamField body="telefono" type="string" required>
+  Contact phone number. Must be between 1 and 30 characters. Any format is accepted.
+</ParamField>

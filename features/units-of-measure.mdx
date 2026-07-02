@@ -1,0 +1,103 @@
+---
+title: "Units of Measure: Define Material Quantity Standards"
+sidebarTitle: "Units of Measure"
+description: "Units of measure define how material quantities are counted in Corpointa — examples include units, kilograms, liters, and meters. Every material requires a unit assignment."
+---
+
+Units of measure define the counting standard applied to each material in Corpointa. When a material is created, it must be assigned a unit of measure (`fk_id_medida`) that determines how its quantity is expressed throughout the system — in stock records, movement entries, and dispatch documents. The module is accessible at the `/unidades-medida` route and provides a simple CRUD interface for managing the available unit options.
+
+---
+
+## Data Model
+
+The `UnidadMedida` type is derived from the Zod schema in `src/features/unidades-medida/data/schema.ts`.
+
+```typescript
+export const unidadSchema = z.object({
+  id_medida: z.number(),
+  nombre:    z.string().min(1, { message: 'El nombre es requerido' }).max(50),
+})
+
+export type UnidadMedida = z.infer<typeof unidadSchema>
+```
+
+### Field Reference
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id_medida` | `number` | Auto-assigned | Primary key. Referenced as `fk_id_medida` in material records. |
+| `nombre` | `string` | Required, max 50 chars | Display name of the unit (e.g., `Unidad`, `Kg`, `Litro`, `Metro`). |
+
+---
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="CRUD Table" icon="table">
+    Lists all defined units of measure. Each row has edit and delete actions available via an inline action menu.
+  </Card>
+  <Card title="Create Dialog" icon="plus">
+    A minimal form with a single `nombre` field. Client-side Zod validation enforces the required constraint before submission.
+  </Card>
+  <Card title="Edit Dialog" icon="pencil">
+    Pre-fills the form with the selected unit's current name. Updates are applied via `PUT /unidades-medidas/:id`.
+  </Card>
+  <Card title="Referenced by Materials" icon="link">
+    The unit name (`medida_nombre`) is resolved via JOIN and displayed in the Materials table and material detail dialogs wherever a material's unit needs to be shown.
+  </Card>
+</CardGroup>
+
+---
+
+## API Operations
+
+All functions live in `src/features/unidades-medida/api/unidades-medidas.ts`.
+
+<Note>
+  The API base path for this resource is `/unidades-medidas` (with a trailing **s**), matching the backend route naming convention.
+</Note>
+
+| Method | Endpoint | Function | Description |
+|---|---|---|---|
+| `GET` | `/unidades-medidas` | `getUnidades()` | Returns all unit of measure records. |
+| `GET` | `/unidades-medidas/:id` | `getUnidad(id)` | Returns a single unit by `id_medida`. |
+| `POST` | `/unidades-medidas` | `createUnidad(data)` | Creates a new unit. Body: `{ nombre: string }`. |
+| `PUT` | `/unidades-medidas/:id` | `updateUnidad(id, data)` | Updates the name of an existing unit. Body: `{ nombre: string }`. |
+| `DELETE` | `/unidades-medidas/:id` | `deleteUnidad(id)` | Permanently removes a unit of measure record. |
+
+### Create Payload
+
+When creating or updating a unit, `id_medida` is excluded from the request body:
+
+```typescript
+type UnidadPayload = Omit<UnidadMedida, 'id_medida'>
+// { nombre: string }
+```
+
+### Example: Create a Unit
+
+```typescript
+import { createUnidad } from '@/features/unidades-medida/api/unidades-medidas'
+
+const unit = await createUnidad({ nombre: 'Litro' })
+// Returns: { id_medida: 4, nombre: 'Litro' }
+```
+
+### Example: GET /unidades-medidas Response
+
+```json
+[
+  { "id_medida": 1, "nombre": "Unidad" },
+  { "id_medida": 2, "nombre": "Kg" },
+  { "id_medida": 3, "nombre": "Metro" },
+  { "id_medida": 4, "nombre": "Litro" }
+]
+```
+
+<Warning>
+  Deleting a unit of measure that is currently assigned to one or more materials will be **blocked by the backend** due to a foreign-key constraint. Reassign or remove the associated materials before deleting the unit.
+</Warning>
+
+<Tip>
+  Populate units of measure during initial system setup — **before** creating any materials. Common starting units include `Unidad`, `Kg`, `Litro`, and `Metro`. Having these in place ensures the Materials creation form dropdowns are ready from day one.
+</Tip>

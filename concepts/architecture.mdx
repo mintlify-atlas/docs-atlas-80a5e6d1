@@ -1,0 +1,170 @@
+---
+title: "Corpointa Frontend Architecture and Project Structure"
+sidebarTitle: "Architecture"
+description: "Understand how Corpointa is organized — feature-based folders, shared UI components, state management with Zustand, and server state with TanStack Query."
+---
+
+Corpointa's frontend follows a **feature-based architecture**: every business domain lives in its own self-contained folder under `src/features/`, keeping API calls, components, data schemas, and page logic co-located. Shared infrastructure — the API client, context providers, Zustand stores, and reusable hooks — is kept in purpose-specific top-level directories so it can be consumed by any feature without creating cross-feature coupling.
+
+## Directory Structure
+
+```
+src/
+├── assets/          # Brand icons, custom graphics
+├── components/      # Shared layout and UI components
+│   ├── layout/      # App shell: sidebar, header, nav groups
+│   └── ui/          # shadcn/Radix primitive wrappers
+├── config/          # Font configuration
+├── context/         # React context providers
+├── features/        # Feature modules (one folder per domain)
+│   ├── auth/        # Authentication flow
+│   ├── dashboard/   # Dashboard page and charts
+│   ├── materiales/  # Materials CRUD
+│   ├── entradas/    # Control Perceptivo (receipts)
+│   ├── salidas/     # Despachos (dispatches)
+│   ├── existencias/ # Stock levels
+│   └── ...          # Other feature modules
+├── hooks/           # Shared custom hooks
+├── lib/             # Utilities: api-client, cookies, token-utils
+├── routes/          # TanStack Router file-based routes
+└── stores/          # Zustand auth store
+```
+
+## Feature Module Pattern
+
+Each folder inside `src/features/` represents a single domain and follows a consistent internal layout:
+
+<CardGroup cols={2}>
+  <Card title="api/" icon="plug">
+    Axios-powered async functions and TanStack Query hooks for that feature. For example, `src/features/materiales/api/` exposes query and mutation hooks consumed by the page component.
+  </Card>
+  <Card title="components/" icon="puzzle-piece">
+    Feature-specific React components — tables, forms, dialogs — that are **not** shared with other features.
+  </Card>
+  <Card title="data/" icon="database">
+    Zod schemas (`schema.ts`) that validate form inputs and API payloads, keeping type safety at the boundary between the UI and the network.
+  </Card>
+  <Card title="index.tsx" icon="box-archive">
+    Barrel re-export or top-level page component rendered by the matching route file in `src/routes/`.
+  </Card>
+</CardGroup>
+
+<Note>
+  Feature folders are intentionally not allowed to import from sibling features. Cross-cutting concerns are extracted to `src/lib/`, `src/hooks/`, or `src/components/` so the dependency graph stays acyclic.
+</Note>
+
+## State Management
+
+Corpointa uses two complementary state-management layers that handle distinct concerns:
+
+<CardGroup cols={2}>
+  <Card title="Zustand — Auth State" icon="lock">
+    A single `useAuthStore` in `src/stores/auth-store.ts` owns the authenticated user object, the JWT access token, and the decoded token expiry timestamp. All values are hydrated from cookies on startup and persisted back to cookies on every mutation so they survive a hard refresh.
+  </Card>
+  <Card title="TanStack Query — Server State" icon="server">
+    Each feature manages its own queries and mutations via `@tanstack/react-query`. The shared `QueryClient` is created in `src/main.tsx` with a 10-second stale time and automatic 401/500 error handling in the global `QueryCache.onError` handler.
+  </Card>
+</CardGroup>
+
+```ts
+// src/main.tsx — QueryClient configuration
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 10 * 1000, // 10 s
+      refetchOnWindowFocus: import.meta.env.PROD,
+    },
+  },
+  queryCache: new QueryCache({
+    onError: (error) => {
+      if (error instanceof AxiosError) {
+        if (error.response?.status === 401) {
+          useAuthStore.getState().auth.reset()
+          router.navigate({ to: '/sign-in-2', search: { redirect } })
+        }
+        if (error.response?.status === 500 && import.meta.env.PROD) {
+          router.navigate({ to: '/500' })
+        }
+      }
+    },
+  }),
+})
+```
+
+## Shared API Client
+
+All HTTP traffic passes through a single Axios instance exported from `src/lib/api-client.ts`. A request interceptor reads the JWT cookie, JSON-parses it, and injects the `Authorization: Bearer <token>` header before every outgoing request. The base URL defaults to `http://localhost:4000` and is overridden by the `VITE_API_URL` environment variable in production.
+
+```ts
+// src/lib/api-client.ts
+import axios from 'axios'
+
+const apiClient = axios.create({
+  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:4000',
+  headers: { 'Content-Type': 'application/json' },
+})
+
+apiClient.interceptors.request.use((config) => {
+  const cookieName = 'thisisjustarandomstring'
+  const cookieValue = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith(`${cookieName}=`))
+    ?.split('=')[1]
+
+  if (cookieValue) {
+    try {
+      const token = JSON.parse(decodeURIComponent(cookieValue))
+      if (token) config.headers.Authorization = `Bearer ${token}`
+    } catch {
+      // invalid cookie — silently ignore
+    }
+  }
+  return config
+})
+
+export default apiClient
+```
+
+<Tip>
+  Because `apiClient` is a singleton, any feature-level API function only needs to `import apiClient from '@/lib/api-client'` — authentication is handled transparently by the interceptor.
+</Tip>
+
+## Context Providers
+
+The `src/context/` directory houses global React context providers that wrap the entire application inside `src/main.tsx`:
+
+| Provider | Purpose |
+|---|---|
+| `ThemeProvider` | Light / dark mode, synced to a cookie |
+| `FontProvider` | Active font family preference |
+| `DirectionProvider` | LTR / RTL text direction |
+| `LayoutProvider` | Fixed vs. scrollable content layout |
+| `SearchProvider` | Global command-palette search state |
+
+## Shared Hooks
+
+`src/hooks/` contains reusable hooks that work across features:
+
+- **`useTableUrlState`** — Synchronises TanStack Table pagination, global filter, and column filters with URL search params so table state survives navigation and is shareable via URL.
+- **`useDialogState`** — Lightweight open/close state helper for modal dialogs.
+- **`useMobile`** — Breakpoint hook that returns `true` when the viewport is in the mobile range.
+
+## Automatic Code Splitting
+
+The TanStack Router Vite plugin is configured with `autoCodeSplitting: true` in `vite.config.ts`. Every route file is automatically split into its own async chunk — no manual `React.lazy()` or `import()` calls required. Routes with the `.lazy.tsx` suffix (such as `existencias/index.lazy.tsx` and `salidas/index.lazy.tsx`) receive additional explicit lazy boundaries.
+
+```ts
+// vite.config.ts
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    tanstackRouter({
+      target: 'react',
+      autoCodeSplitting: true,
+    }),
+    react(),
+    tailwindcss(),
+  ],
+})
+```

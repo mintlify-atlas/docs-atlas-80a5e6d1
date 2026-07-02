@@ -1,0 +1,166 @@
+---
+title: "User Management: Control System Access and Roles"
+sidebarTitle: "Users"
+description: "The Users module manages system accounts in Corpointa. Admins can create, update, activate/deactivate users, and assign roles that control feature access."
+---
+
+User management gives administrators full control over who can access Corpointa and what they can do. From the `/usuarios` route, admins can view all accounts, create new users, reset passwords, toggle active status, and monitor when each person last accessed the system. Users authenticate with their **cédula** and **contraseña** — there are no email-based logins.
+
+<Note>
+  The Users module is restricted to administrator-level accounts. Standard users can manage their own profile and password from the [Settings](/features/settings) page but cannot access this module.
+</Note>
+
+## Data Model
+
+Each user record contains the following fields:
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id_usuario` | integer | Primary key, optional on create | Unique numeric identifier for the user |
+| `cedula` | string | Required, min 1 char, max 30 chars | Venezuelan national identity number; used as the login username |
+| `nombre1` | string | Required, max 50 chars | First given name |
+| `nombre2` | string | Optional, max 50 chars | Second given name |
+| `apellido1` | string | Required, max 50 chars | First (paternal) surname |
+| `apellido2` | string | Optional, max 50 chars | Second (maternal) surname |
+| `clave` | string | Min 6 chars, write-only | Account password; never returned in API responses |
+| `activo` | boolean | Optional | Whether the account is enabled for login |
+| `fecha_creacion` | string (ISO 8601) | Read-only | Timestamp when the account was created |
+| `ultimo_acceso` | string (ISO 8601) | Read-only | Timestamp of the user's most recent login |
+
+<Warning>
+  **Passwords are write-only.** The `clave` field is never included in any API response. It is only sent to the server on account creation or a password update. Never attempt to read or display it from the client.
+</Warning>
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="User Table with Last Login" icon="table">
+    The user list displays the full name, cédula, active status, creation date, and last login timestamp for every account, giving admins a quick activity overview.
+  </Card>
+  <Card title="Invite / Create Dialog" icon="user-plus">
+    The **New User** dialog collects all required fields including the initial password. The `clave` field enforces a minimum of 6 characters at the form level.
+  </Card>
+  <Card title="Activate / Deactivate Toggle" icon="toggle-on">
+    Each row includes an `activo` toggle. Deactivated accounts cannot log in but are preserved in the database so that historical audit entries remain associated with the correct user.
+  </Card>
+  <Card title="Edit and Delete" icon="pencil">
+    Admins can update any user's personal details or password via the edit dialog. Deleting a user is permanent; deactivation is the preferred approach for former staff.
+  </Card>
+</CardGroup>
+
+## API Reference
+
+The users API resolves to the `/users` endpoint (note: the frontend route is `/usuarios` but the REST resource is `/users`).
+
+### List Users
+
+<ResponseField name="GET /users" type="Usuario[]">
+  Returns an array of all user accounts. The `clave` field is never included in the response.
+
+  ```http
+  GET /users
+  ```
+
+  **Response**
+  ```json
+  [
+    {
+      "id_usuario": 3,
+      "cedula": "V-12345678",
+      "nombre1": "Carlos",
+      "nombre2": null,
+      "apellido1": "Martínez",
+      "apellido2": "López",
+      "activo": true,
+      "fecha_creacion": "2024-01-15T09:00:00.000Z",
+      "ultimo_acceso": "2025-11-06T14:32:10.000Z"
+    }
+  ]
+  ```
+</ResponseField>
+
+### Get Single User
+
+<ResponseField name="GET /users/:id" type="Usuario">
+  Returns a single user by their `id_usuario`.
+
+  ```http
+  GET /users/3
+  ```
+</ResponseField>
+
+### Create User
+
+<ResponseField name="POST /users" type="Usuario">
+  Creates a new user account. The `id_usuario`, `fecha_creacion`, and `ultimo_acceso` fields are managed by the server and must not be sent in the request body. The `clave` field is required on creation.
+
+  ```http
+  POST /users
+  Content-Type: application/json
+
+  {
+    "cedula": "V-20789012",
+    "nombre1": "María",
+    "nombre2": "José",
+    "apellido1": "González",
+    "apellido2": null,
+    "clave": "segura123",
+    "activo": true
+  }
+  ```
+</ResponseField>
+
+### Update User
+
+<ResponseField name="PUT /users/:id" type="Usuario">
+  Updates an existing user. Send only the fields you wish to change. Include `clave` only when performing a password reset.
+
+  ```http
+  PUT /users/3
+  Content-Type: application/json
+
+  {
+    "activo": false
+  }
+  ```
+</ResponseField>
+
+### Delete User
+
+<ResponseField name="DELETE /users/:id" type="void">
+  Permanently removes a user account.
+
+  ```http
+  DELETE /users/3
+  ```
+</ResponseField>
+
+## Field Validation
+
+<ParamField body="cedula" type="string" required>
+  Venezuelan national identity number used as the login credential. Must be at least 1 character and no longer than 30 characters. Include the document prefix, e.g. `V-12345678` or `E-87654321`.
+</ParamField>
+
+<ParamField body="nombre1" type="string" required>
+  First given name. Required; max 50 characters.
+</ParamField>
+
+<ParamField body="apellido1" type="string" required>
+  First (paternal) surname. Required; max 50 characters.
+</ParamField>
+
+<ParamField body="clave" type="string">
+  Account password. Must be at least 6 characters. Required on create; optional on update (omit to leave the password unchanged). Never returned in any response.
+</ParamField>
+
+<ParamField body="nombre2" type="string">
+  Second given name. Optional; max 50 characters.
+</ParamField>
+
+<ParamField body="apellido2" type="string">
+  Second (maternal) surname. Optional; max 50 characters.
+</ParamField>
+
+<ParamField body="activo" type="boolean">
+  Account enabled state. Set to `false` to prevent the user from logging in without deleting their record.
+</ParamField>

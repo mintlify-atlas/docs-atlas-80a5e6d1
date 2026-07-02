@@ -1,0 +1,116 @@
+---
+title: "Destinations: Define Delivery Locations for Material Dispatches"
+sidebarTitle: "Destinations"
+description: "Destinations (Destinos) represent offices, workshops, or departments to which materials are dispatched. Employees are assigned to a destination."
+---
+
+Destinations (*destinos*) are the named locations — offices, workshops, warehouses, or departments — that serve as delivery points for material dispatches. Because employees must be linked to a destination, and dispatches are directed to a destination, this is a foundational reference table that should be populated before other data is entered. Manage all destinations at the `/destinos` route.
+
+## Data Model
+
+The destination record is intentionally minimal:
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id_destino` | integer | Primary key, auto-generated | Unique numeric identifier for the destination |
+| `nombre` | string | Required, max 50 chars | Human-readable name for the location |
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Simple CRUD Table" icon="table">
+    The destinations list displays all location names in a clean table. Records can be created, edited, and deleted directly from the table via inline dialogs.
+  </Card>
+  <Card title="Referenced by Employees" icon="users">
+    Every employee record requires a valid `fk_id_destino`. The employee creation form populates its destination dropdown from this table.
+  </Card>
+  <Card title="Referenced by Dispatches" icon="truck">
+    Material dispatch records target a specific destination, allowing you to track where inventory was sent and to whom.
+  </Card>
+  <Card title="Delete Confirmation" icon="trash">
+    Attempting to delete a destination that is currently assigned to employees or dispatches may be prevented by the backend to preserve referential integrity.
+  </Card>
+</CardGroup>
+
+<Tip>
+  Set up your destinations **before** creating employees or processing dispatches. The employee form's destination dropdown and the dispatch routing both depend on this table being populated.
+</Tip>
+
+## API Reference
+
+All endpoints operate on the `/destinos` resource and return or accept JSON.
+
+### List Destinations
+
+<ResponseField name="GET /destinos" type="Destino[]">
+  Returns an array of all destination records.
+
+  ```http
+  GET /destinos
+  ```
+
+  **Response**
+  ```json
+  [
+    { "id_destino": 1, "nombre": "Sede Principal" },
+    { "id_destino": 2, "nombre": "Almacén Norte" },
+    { "id_destino": 3, "nombre": "Taller de Mantenimiento" }
+  ]
+  ```
+</ResponseField>
+
+### Get Single Destination
+
+<ResponseField name="GET /destinos/:id" type="Destino">
+  Returns a single destination by its `id_destino`.
+
+  ```http
+  GET /destinos/2
+  ```
+</ResponseField>
+
+### Create Destination
+
+<ResponseField name="POST /destinos" type="Destino">
+  Creates a new destination. The `id_destino` is assigned by the server.
+
+  ```http
+  POST /destinos
+  Content-Type: application/json
+
+  {
+    "nombre": "Oficina Regional Sur"
+  }
+  ```
+</ResponseField>
+
+### Update Destination
+
+<ResponseField name="PUT /destinos/:id" type="Destino">
+  Updates the name of an existing destination. All employees and dispatches referencing this destination will reflect the updated name automatically.
+
+  ```http
+  PUT /destinos/2
+  Content-Type: application/json
+
+  {
+    "nombre": "Almacén Norte (Ampliado)"
+  }
+  ```
+</ResponseField>
+
+### Delete Destination
+
+<ResponseField name="DELETE /destinos/:id" type="void">
+  Permanently removes a destination record.
+
+  ```http
+  DELETE /destinos/2
+  ```
+</ResponseField>
+
+## Field Validation
+
+<ParamField body="nombre" type="string" required>
+  Human-readable name for the delivery location. Must be between 1 and 50 characters. Use a name that is recognizable to dispatchers and warehouse staff, such as `"Taller Eléctrico"` or `"Oficina de Compras"`.
+</ParamField>

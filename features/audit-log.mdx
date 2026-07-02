@@ -1,0 +1,130 @@
+---
+title: "Bitácora: Full Audit Log of All System Actions"
+sidebarTitle: "Audit Log"
+description: "The Bitácora records every create, update, and delete operation in Corpointa — who did it, when, which table was affected, and the record identifier."
+---
+
+The Bitácora is Corpointa's immutable audit log. Every time a user creates, updates, or deletes a record anywhere in the system, the backend automatically writes an entry to the bitácora capturing who performed the action, when it occurred, which database table was affected, the ID of the modified record, and a human-readable description of the change. No entries are created or modified from the frontend — the log is entirely server-driven. You can review the full history at the `/bitacora` route.
+
+<Note>
+  The bitácora is **read-only** from the UI and the frontend API. There are no create, update, or delete operations exposed for log entries. This ensures the audit trail cannot be tampered with through the application layer.
+</Note>
+
+## Data Model
+
+Each audit entry contains the following fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `id_bitacora` | integer | Primary key; unique identifier for the log entry |
+| `fk_id_usuario` | integer \| null | ID of the user who performed the action; nullable if the action was system-generated |
+| `nombre1` | string \| null | First name of the acting user (JOIN from users table) |
+| `apellido1` | string \| null | First surname of the acting user (JOIN from users table) |
+| `cedula` | string \| null | Cédula of the acting user (JOIN from users table) |
+| `fecha_hora` | string (ISO 8601) | Timestamp of when the action occurred |
+| `accion` | string | Action type, e.g. `CREATE`, `UPDATE`, `DELETE` |
+| `tabla_afectada` | string | Name of the database table that was modified |
+| `id_registro_afectado` | string \| integer \| null | Primary key of the record that was created, updated, or deleted |
+| `descripcion` | string \| null | Human-readable description of the specific change |
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Read-Only View" icon="eye">
+    The bitácora table is strictly read-only. There are no action buttons, edit dialogs, or delete options — the log is meant to be observed, not modified.
+  </Card>
+  <Card title="Filter by User" icon="user">
+    Narrow the log to entries made by a specific user using the user column filter, helping you trace the actions of a particular account.
+  </Card>
+  <Card title="Filter by Date" icon="calendar">
+    Use the `fecha_hora` column filter to isolate entries within a specific time range and quickly pinpoint when a change was made.
+  </Card>
+  <Card title="Search by Action or Table" icon="magnifying-glass">
+    The global search bar lets you type an action keyword (e.g. `DELETE`) or a table name (e.g. `materiales`) to find all related entries across the entire log.
+  </Card>
+</CardGroup>
+
+## API Reference
+
+### List Audit Entries
+
+<ResponseField name="GET /bitacoras" type="Bitacora[]">
+  Returns all audit log entries, ordered by `fecha_hora` descending. This is the only endpoint exposed for the bitácora.
+
+  ```http
+  GET /bitacoras
+  ```
+
+  **Response**
+  ```json
+  [
+    {
+      "id_bitacora": 1042,
+      "fk_id_usuario": 3,
+      "nombre1": "Carlos",
+      "apellido1": "Martínez",
+      "cedula": "V-12345678",
+      "fecha_hora": "2025-11-06T14:32:10.000Z",
+      "accion": "CREATE",
+      "tabla_afectada": "materiales",
+      "id_registro_afectado": 85,
+      "descripcion": "Material creado: Cable UTP Cat6"
+    }
+  ]
+  ```
+</ResponseField>
+
+## Example Log Entries
+
+The following examples illustrate the kinds of entries the bitácora captures across different modules:
+
+```json
+[
+  {
+    "id_bitacora": 1042,
+    "fk_id_usuario": 3,
+    "nombre1": "Carlos",
+    "apellido1": "Martínez",
+    "cedula": "V-12345678",
+    "fecha_hora": "2025-11-06T14:32:10.000Z",
+    "accion": "CREATE",
+    "tabla_afectada": "materiales",
+    "id_registro_afectado": 85,
+    "descripcion": "Material creado: Cable UTP Cat6"
+  },
+  {
+    "id_bitacora": 1043,
+    "fk_id_usuario": 3,
+    "nombre1": "Carlos",
+    "apellido1": "Martínez",
+    "cedula": "V-12345678",
+    "fecha_hora": "2025-11-06T15:10:45.000Z",
+    "accion": "UPDATE",
+    "tabla_afectada": "proveedores",
+    "id_registro_afectado": 12,
+    "descripcion": "Proveedor actualizado: Distribuidora Central C.A."
+  },
+  {
+    "id_bitacora": 1044,
+    "fk_id_usuario": 7,
+    "nombre1": "Luisa",
+    "apellido1": "Fernández",
+    "cedula": "V-18901234",
+    "fecha_hora": "2025-11-06T16:05:30.000Z",
+    "accion": "DELETE",
+    "tabla_afectada": "empleados",
+    "id_registro_afectado": 22,
+    "descripcion": "Empleado eliminado: Pedro Suárez"
+  }
+]
+```
+
+## How the Bitácora Is Written
+
+The bitácora is populated entirely by the **backend** on every mutating operation. When the frontend calls `POST`, `PUT`, or `DELETE` on any resource, the server:
+
+1. Executes the requested database change.
+2. Resolves the authenticated user's identity from the session token.
+3. Writes a new row to the `bitacoras` table with the action details.
+
+This means the audit trail is always consistent with what actually happened in the database, regardless of frontend behavior.

@@ -1,0 +1,68 @@
+---
+title: "Environment Variables and Build Configuration for Corpointa"
+sidebarTitle: "Environment"
+description: "Configure Corpointa for production by setting VITE_API_URL and optionally VITE_CLERK_PUBLISHABLE_KEY. All environment variables must be prefixed with VITE_ to be exposed to the browser."
+---
+
+Corpointa is a Vite-powered application, which means only variables prefixed with `VITE_` are statically inlined into the client bundle at build time. Any variable without that prefix stays server-side and is never accessible to browser code. Variables are accessed at runtime via `import.meta.env.VITE_*` — there is no `process.env` in the browser context.
+
+## Available Variables
+
+| Name | Required | Default | Description |
+|---|---|---|---|
+| `VITE_API_URL` | Optional | `http://localhost:4000` | The base URL for the backend REST API. All Axios requests use this as their base URL. |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Optional | — | Clerk publishable key. Only required if you are using Clerk-authenticated routes. Leave unset to disable Clerk integration. |
+
+## Setting Variables
+
+**Development** — create a `.env` or `.env.local` file in the project root. Vite loads `.env.local` automatically and excludes it from version control by default (it is already in `.gitignore`).
+
+**Production** — set variables directly in your hosting platform's environment settings. For Netlify, go to **Site configuration → Environment variables** and add each key there. The values are injected at build time when Netlify runs `pnpm build`.
+
+```bash .env
+VITE_API_URL=https://api.corpointa.example.com
+VITE_CLERK_PUBLISHABLE_KEY=pk_live_xxxxxxxxxxxx
+```
+
+<Warning>
+  Never commit `.env` files that contain real API keys, publishable keys, or other credentials to version control. Use `.env.local` for local secrets, and rely on your hosting platform's environment variable panel for production values.
+</Warning>
+
+## Build Commands
+
+The following scripts are defined in `package.json`:
+
+| Command | What it does |
+|---|---|
+| `pnpm build` | Runs `tsc -b && vite build`. TypeScript is type-checked first, then Vite bundles the application and writes output to `dist/`. |
+| `pnpm preview` | Serves the contents of `dist/` locally on port **4173**. Use this to verify the production build before deploying. |
+| `pnpm dev` | Starts the Vite dev server with HMR for local development. |
+
+The full build script from `package.json`:
+
+```json package.json
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  }
+}
+```
+
+## Build Output
+
+Vite outputs all compiled assets to the `dist/` directory. The build uses **TanStack Router's automatic code-splitting** (`autoCodeSplitting: true` in `vite.config.ts`), which means each route is emitted as a separate JavaScript chunk and loaded lazily on demand. This keeps the initial bundle size small — the user only downloads code for the pages they actually visit.
+
+```typescript vite.config.ts
+plugins: [
+  tanstackRouter({
+    target: 'react',
+    autoCodeSplitting: true,
+  }),
+  react(),
+  tailwindcss(),
+],
+```
+
+The `dist/` folder contains a static `index.html` entry point plus hashed asset files (`*.js`, `*.css`). It can be served by any static file host or CDN — no Node.js server is required at runtime.
